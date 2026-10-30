@@ -4,33 +4,22 @@ import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Sparkles, ShieldCheck, AlertCircle, Bot, Zap, Lock, ArrowRight } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { useApp } from '@/context/AppContext';
 
 function LoginForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/';
   const urlError = searchParams.get('error');
+  const { signInWithGoogle } = useApp();
 
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(urlError || null);
-
-  const supabase = createClient();
+  const [errorMsg, setErrorMsg] = useState<string | null>(urlError ? 'Please sign in to access your workspace.' : null);
 
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
-        },
-      });
-
-      if (error) {
-        setErrorMsg(error.message);
-        setLoading(false);
-      }
+      await signInWithGoogle();
     } catch (err: any) {
       setErrorMsg(err?.message || 'Failed to initialize Google authentication');
       setLoading(false);

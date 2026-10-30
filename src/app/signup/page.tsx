@@ -4,32 +4,21 @@ import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Sparkles, ShieldCheck, AlertCircle, Bot, Zap, Lock } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { useApp } from '@/context/AppContext';
 
 function SignupForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/';
+  const { signInWithGoogle } = useApp();
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const supabase = createClient();
 
   const handleGoogleSignup = async () => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
-        },
-      });
-
-      if (error) {
-        setErrorMsg(error.message);
-        setLoading(false);
-      }
+      await signInWithGoogle();
     } catch (err: any) {
       setErrorMsg(err?.message || 'Failed to initialize Google sign-up');
       setLoading(false);

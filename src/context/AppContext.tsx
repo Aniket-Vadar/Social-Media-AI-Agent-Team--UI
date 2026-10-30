@@ -117,7 +117,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const supabase = createClient();
 
+  const isSupabaseConfigured =
+    typeof process !== 'undefined' &&
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://mock-project.supabase.co' &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://your-project.supabase.co' &&
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY !== 'mock-anon-key' &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY !== 'your-anon-public-key';
+
   useEffect(() => {
+    // Demo Mode fallback when Supabase keys are not yet configured in .env.local
+    if (!isSupabaseConfigured) {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('socialix_demo_user');
+        if (stored) {
+          try {
+            setUser(JSON.parse(stored));
+          } catch {
+            setUser(null);
+          }
+        }
+      }
+      setIsLoadingUser(false);
+      return;
+    }
+
     // 1. Check for incoming OAuth code in URL
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
@@ -176,15 +201,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [isSupabaseConfigured]);
 
   const signOut = async () => {
+    if (!isSupabaseConfigured) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('socialix_demo_user');
+      }
+      setUser(null);
+      window.location.href = '/login';
+      return;
+    }
+
     await supabase.auth.signOut();
     setUser(null);
     window.location.href = '/login';
   };
 
   const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured) {
+      // Smooth local fallback: simulate instant Google OAuth login
+      const demoUser: AuthUser = {
+        id: 'usr-google-demo',
+        name: 'Aniket Vadar',
+        email: 'aniket.vadar@gmail.com',
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80',
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('socialix_demo_user', JSON.stringify(demoUser));
+      }
+      setUser(demoUser);
+      window.location.href = '/';
+      return;
+    }
+
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
