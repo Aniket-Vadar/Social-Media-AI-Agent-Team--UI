@@ -19,7 +19,7 @@ import { OfficeCanvas } from '@/components/office/OfficeCanvas';
 
 export default function OverviewPage() {
   const router = useRouter();
-  const { activeCampaign, posts, setActiveAgentId, setIsCreatePostOpen } = useApp();
+  const { user, activeCampaign, posts, setActiveAgentId, setIsCreatePostOpen } = useApp();
 
   const scheduledPosts = posts.filter(p => p.status === 'scheduled');
   const nextPost = scheduledPosts[0];
@@ -28,6 +28,15 @@ export default function OverviewPage() {
     setActiveAgentId('master');
     router.push('/agents');
   };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const greetingName = user?.name ? user.name.split(' ')[0] : 'Creator';
 
   return (
     <div className="space-y-6">
@@ -43,7 +52,7 @@ export default function OverviewPage() {
           {/* Greeting Banner */}
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-amber-600">
-              <span>☀️ Good afternoon, Saloni</span>
+              <span>☀️ {getGreeting()}, {greetingName}</span>
               <span className="inline-block animate-wave">👋</span>
             </div>
             <h2 className="text-3xl font-extrabold tracking-tight text-gray-950">

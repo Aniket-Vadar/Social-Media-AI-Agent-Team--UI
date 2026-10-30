@@ -17,12 +17,17 @@ import {
   PanelLeftClose,
   PanelLeft,
   Sparkles,
+  LogOut,
+  LogIn,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
   const {
+    user,
+    signOut,
+    signInWithGoogle,
     campaigns,
     activeCampaign,
     setActiveCampaignId,
@@ -194,6 +199,30 @@ export const Sidebar: React.FC = () => {
           <Settings className="w-4 h-4 text-gray-500 flex-shrink-0" />
           {!sidebarCollapsed && <span>Settings</span>}
         </Link>
+
+        {user ? (
+          <button
+            onClick={() => signOut()}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50/80 transition-colors ${
+              sidebarCollapsed ? 'justify-center px-0' : ''
+            }`}
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4 text-red-500 flex-shrink-0" />
+            {!sidebarCollapsed && <span className="flex-1 text-left">Log out</span>}
+          </button>
+        ) : (
+          <button
+            onClick={() => signInWithGoogle()}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-medium text-brand-600 hover:text-brand-700 hover:bg-indigo-50/80 transition-colors ${
+              sidebarCollapsed ? 'justify-center px-0' : ''
+            }`}
+            title="Sign in with Google"
+          >
+            <LogIn className="w-4 h-4 text-brand-600 flex-shrink-0" />
+            {!sidebarCollapsed && <span className="flex-1 text-left font-semibold">Sign in</span>}
+          </button>
+        )}
 
         <button
           onClick={() => setSidebarCollapsed(prev => !prev)}

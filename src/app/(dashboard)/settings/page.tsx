@@ -13,12 +13,16 @@ import {
   Shield,
   Sliders,
   Sparkles,
+  LogOut,
+  User,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
 
 export default function SettingsPage() {
   const {
+    user,
+    signOut,
     accounts,
     toggleAccountConnection,
     blotatoApiKey,
@@ -283,6 +287,55 @@ export default function SettingsPage() {
                 </div>
               </label>
             </div>
+          </div>
+        </div>
+
+        {/* User Account & Authentication */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-xl bg-indigo-50 text-brand-600">
+              <User className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Account & Security</h2>
+              <p className="text-xs text-gray-400">
+                Manage your authenticated identity, session, and single sign-on access.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {user?.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.name}
+                  className="w-12 h-12 rounded-2xl object-cover ring-2 ring-indigo-100 shadow-sm"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 text-white font-bold flex items-center justify-center text-base shadow-sm">
+                  {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+              )}
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-sm text-gray-900">{user?.name || 'Authenticated Creator'}</h4>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Google SSO
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">{user?.email || 'Logged in via Google'}</p>
+                <p className="text-[10px] text-gray-400">Protected by Supabase Auth & Anti-Spam Shield</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => signOut()}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-red-200 bg-red-50/50 hover:bg-red-100/60 text-red-600 text-xs font-semibold transition-colors shadow-xs"
+            >
+              <LogOut className="w-4 h-4 text-red-500" />
+              <span>Sign out</span>
+            </button>
           </div>
         </div>
       </div>

@@ -20,8 +20,22 @@ import {
   initialChatMessages,
   initialConnectedAccounts,
 } from '@/data/mockData';
+import { createClient } from '@/lib/supabase/client';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+}
 
 interface AppContextType {
+  // Auth
+  user: AuthUser | null;
+  isLoadingUser: boolean;
+  signOut: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+
   // Campaign
   campaigns: Campaign[];
   activeCampaign: Campaign;
@@ -78,6 +92,9 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
   const [activeCampaignId, setActiveCampaignId] = useState<string>('camp-1');
   const [agents, setAgents] = useState<Agent[]>(initialAgents);
@@ -97,6 +114,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notificationsCount, setNotificationsCount] = useState(2);
+
+  const supabase = createClient();
+
+  useEffect(() => {
+    // 1. Fetch authenticated user from Supabase
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        const meta = data.user.user_metadata || {};
+        setUser({
+          id: data.user.id,
+          email: data.user.email || '',
+          name: meta.full_name || meta.name || data.user.email?.split('@')[0] || 'User',
+          avatarUrl: meta.avatar_url || meta.picture,
+        });
+      } else {
+        setUser(null);
+      }
+      setIsLoadingUser(false);
+    });
+
+    // 2. Subscribe to auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const meta = session.user.user_metadata || {};
+        setUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          name: meta.full_name || meta.name || session.user.email?.split('@')[0] || 'User',
+          avatarUrl: meta.avatar_url || meta.picture,
+        });
+      } else {
+        setUser(null);
+      }
+      setIsLoadingUser(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    window.location.href = '/login';
+  };
+
+  const signInWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+  };
 
   const activeCampaign = campaigns.find(c => c.id === activeCampaignId) || campaigns[0];
   const activeAgent = agents.find(a => a.id === activeAgentId) || agents[0];
@@ -300,6 +374,10 @@ I have queued Plan #${planNumber}. You can watch real-time progress on the right
   return (
     <AppContext.Provider
       value={{
+        user,
+        isLoadingUser,
+        signOut,
+        signInWithGoogle,
         campaigns,
         activeCampaign,
         setActiveCampaignId,
