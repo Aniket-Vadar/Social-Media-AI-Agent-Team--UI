@@ -67,7 +67,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 4. Supabase Authentication Check
+  // 4. Auto-route OAuth callback code if received on any page
+  const authCode = request.nextUrl.searchParams.get('code');
+  if (authCode && pathname !== '/auth/callback') {
+    const callbackUrl = new URL('/auth/callback', request.url);
+    callbackUrl.searchParams.set('code', authCode);
+    callbackUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(callbackUrl);
+  }
+
+  // 5. Supabase Authentication Check
   const { response, user } = await updateSession(request);
 
   const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname.startsWith('/auth');
