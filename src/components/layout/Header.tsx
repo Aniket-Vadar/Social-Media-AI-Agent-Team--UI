@@ -1,8 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Search, Bell, Plus, ChevronDown, Sparkles, PenTool, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  Search,
+  Bell,
+  Plus,
+  ChevronDown,
+  Sparkles,
+  PenTool,
+  CheckCircle2,
+  LogOut,
+  User,
+  Shield,
+  Settings,
+} from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { createClient } from '@/lib/supabase/client';
 
 interface HeaderProps {
   title: string;
@@ -10,14 +25,44 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
+  const router = useRouter();
   const {
     setIsCreatePostOpen,
     setIsCommandPaletteOpen,
     notificationsCount,
+    activeCampaign,
   } = useApp();
 
   const [createDropdownOpen, setCreateDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>(null);
+
+  const supabase = createClient();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        setCurrentUser({
+          email: data.user.email || 'saloni@tubeguruji.pro',
+          name: data.user.user_metadata?.full_name || 'Saloni',
+        });
+      } else {
+        setCurrentUser({
+          email: 'saloni@tubeguruji.pro',
+          name: 'Saloni',
+        });
+      }
+    });
+  }, [supabase]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+    router.refresh();
+  };
+
+  const initial = currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'S';
 
   return (
     <header className="flex items-center justify-between pb-6 select-none relative">
@@ -152,12 +197,57 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
           )}
         </div>
 
-        {/* User Profile Avatar */}
-        <div
-          className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-800 text-white font-bold flex items-center justify-center text-sm shadow-xs cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all"
-          title="Saloni (Tubeguruji Pro)"
-        >
-          S
+        {/* User Profile Avatar & Dropdown */}
+        <div className="relative">
+          <div
+            onClick={() => setUserDropdownOpen(prev => !prev)}
+            className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-800 text-white font-bold flex items-center justify-center text-sm shadow-xs cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all select-none"
+            title={currentUser?.name || 'User Profile'}
+          >
+            {initial}
+          </div>
+
+          {/* User Menu Popover */}
+          {userDropdownOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => setUserDropdownOpen(false)}
+              />
+              <div className="absolute right-0 top-12 z-40 w-64 bg-white rounded-2xl border border-gray-100 shadow-2xl p-3 animate-in fade-in zoom-in-95 duration-150 space-y-2">
+                <div className="px-3 py-2 border-b border-gray-100 space-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-gray-900">{currentUser?.name}</span>
+                    <span className="px-2 py-0.2 rounded-full bg-indigo-50 text-brand-600 text-[10px] font-bold">
+                      Owner
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 truncate">{currentUser?.email}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <Link
+                    href="/settings"
+                    onClick={() => setUserDropdownOpen(false)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Workspace Settings</span>
+                  </Link>
+
+                  <div className="border-t border-gray-100 my-1" />
+
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 transition-colors text-left"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-red-500" />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </header>
