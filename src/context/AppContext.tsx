@@ -57,6 +57,7 @@ interface AppContextType {
   activeCampaign: Campaign;
   setActiveCampaignId: (id: string) => void;
   createCampaign: (data: { name: string; logo: string; officeTheme: OfficeTheme; color?: string }) => Campaign;
+  deleteCampaign: (id: string) => void;
   
   // Agents
   agents: Agent[];
@@ -78,6 +79,7 @@ interface AppContextType {
   activePlan: AgentPlan | null;
   sendMessage: (content: string) => void;
   cancelPlan: () => void;
+  clearChatMessages: () => void;
 
   // Activities & Template Controls
   activities: UserActivity[];
@@ -130,6 +132,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [posts, setPosts] = useState<Post[]>([]);
   const [activePlan, setActivePlan] = useState<AgentPlan | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [campaignChats, setCampaignChats] = useState<Record<string, ChatMessage[]>>({});
   const [activities, setActivities] = useState<UserActivity[]>([]);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>(initialConnectedAccounts);
   const [blotatoApiKey, setBlotatoApiKey] = useState('blot_live_a98f41398c2dfa9387e0Gmk=');
@@ -296,11 +299,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (raw) {
       try {
         const data = JSON.parse(raw);
+        const currCampId = data.activeCampaignId || data.campaigns?.[0]?.id || '';
+        const loadedCampChats: Record<string, ChatMessage[]> = data.campaignChats || {};
+        
         setCampaigns(data.campaigns || []);
-        setActiveCampaignId(data.activeCampaignId || data.campaigns?.[0]?.id || '');
+        setActiveCampaignId(currCampId);
         setPosts(data.posts || []);
         setActivePlan(data.activePlan || null);
-        setChatMessages(data.chatMessages || []);
+
+        // Load chats specifically for the active campaign if available
+        const chatsForCurrentCamp =
+          currCampId && loadedCampChats[currCampId]?.length > 0
+            ? loadedCampChats[currCampId]
+            : data.chatMessages && data.chatMessages.length > 0
+            ? data.chatMessages
+            : [];
+        setChatMessages(chatsForCurrentCamp);
+        setCampaignChats(loadedCampChats);
         setActivities(data.activities || []);
         return;
       } catch (e) {
@@ -331,6 +346,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPosts([]);
     setActivePlan(null);
     setChatMessages([welcomeChat]);
+    setCampaignChats({ global: [welcomeChat] });
     setActivities([initialActivity]);
 
     if (typeof window !== 'undefined') {
@@ -342,6 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           posts: [],
           activePlan: null,
           chatMessages: [welcomeChat],
+          campaignChats: { global: [welcomeChat] },
           activities: [initialActivity],
         })
       );
@@ -355,6 +372,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     posts?: Post[];
     activePlan?: AgentPlan | null;
     chatMessages?: ChatMessage[];
+    campaignChats?: Record<string, ChatMessage[]>;
     activities?: UserActivity[];
   }) => {
     if (!user || typeof window === 'undefined') return;
@@ -506,6 +524,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const handleSetActiveCampaignId = (newCampId: string) => {
+    if (newCampId === activeCampaignId) return;
+
+    // Save current campaign chats
+    const currId = activeCampaignId || 'global';
+    const updatedMap: Record<string, ChatMessage[]> = {
+      ...campaignChats,
+      [currId]: chatMessages,
+    };
+
+    const targetCamp = campaigns.find(c => c.id === newCampId);
+    let targetChats = updatedMap[newCampId];
+
+    if (!targetChats || targetChats.length === 0) {
+      const campWelcome: ChatMessage = {
+        id: `msg-welcome-${Date.now()}`,
+        sender: 'master',
+        role: 'assistant',
+        content: `Hi ${user?.name ? user.name.split(' ')[0] : 'Creator'}! 👋 Switched to campaign "${targetCamp?.name || 'Campaign'}".\n\nWhat kind of posts or launch content would you like the creative team to generate?`,
+        timestamp: 'Just now',
+      };
+      targetChats = [campWelcome];
+      updatedMap[newCampId] = targetChats;
+    }
+
+    setActiveCampaignId(newCampId);
+    setCampaignChats(updatedMap);
+    setChatMessages(targetChats);
+    setActivePlan(null);
+
+    persistWorkspace({
+      activeCampaignId: newCampId,
+      campaignChats: updatedMap,
+      chatMessages: targetChats,
+      activePlan: null,
+    });
+  };
+
   const createCampaign = (data: { name: string; logo: string; officeTheme: OfficeTheme; color?: string }): Campaign => {
     const newCamp: Campaign = {
       id: `camp-${Date.now()}`,
@@ -522,9 +578,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     const nextCamps = [...campaigns, newCamp];
     setCampaigns(nextCamps);
+
+    // Save current campaign chats and initialize clean chats for new campaign
+    const currId = activeCampaignId || 'global';
+    const welcomeForNewCamp: ChatMessage = {
+      id: `msg-welcome-${Date.now()}`,
+      sender: 'master',
+      role: 'assistant',
+      content: `Hi ${user?.name ? user.name.split(' ')[0] : 'Creator'}! 👋 Welcome to your new campaign "${newCamp.name}".\n\nWhat kind of posts or launch content would you like the team to create for this campaign?`,
+      timestamp: 'Just now',
+    };
+
+    const nextChatsMap: Record<string, ChatMessage[]> = {
+      ...campaignChats,
+      [currId]: chatMessages,
+      [newCamp.id]: [welcomeForNewCamp],
+    };
+
+    setCampaignChats(nextChatsMap);
+    setChatMessages([welcomeForNewCamp]);
+    setActivePlan(null);
     setActiveCampaignId(newCamp.id);
+
     logActivity('campaign_created', `Campaign created: "${newCamp.name}"`, `Initialized campaign with ${newCamp.officeTheme} office theme.`, '🚀');
-    persistWorkspace({ campaigns: nextCamps, activeCampaignId: newCamp.id });
+
+    persistWorkspace({
+      campaigns: nextCamps,
+      activeCampaignId: newCamp.id,
+      campaignChats: nextChatsMap,
+      chatMessages: [welcomeForNewCamp],
+      activePlan: null,
+    });
 
     // Sync with production FastAPI backend
     backendApi.createCampaign({
@@ -536,6 +620,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return newCamp;
+  };
+
+  const deleteCampaign = (campId: string) => {
+    const targetCamp = campaigns.find(c => c.id === campId);
+    const nextCamps = campaigns.filter(c => c.id !== campId);
+    setCampaigns(nextCamps);
+
+    // Remove posts belonging to deleted campaign
+    const nextPosts = posts.filter(p => p.campaignId !== campId);
+    setPosts(nextPosts);
+
+    // Clean up chats for deleted campaign
+    const nextChatsMap = { ...campaignChats };
+    delete nextChatsMap[campId];
+    setCampaignChats(nextChatsMap);
+
+    // Switch to remaining campaign or clean slate
+    const nextActiveId = nextCamps[0]?.id || '';
+    setActiveCampaignId(nextActiveId);
+
+    let nextChats: ChatMessage[] = [];
+    if (nextActiveId && nextChatsMap[nextActiveId]?.length > 0) {
+      nextChats = nextChatsMap[nextActiveId];
+    } else {
+      const remainingCamp = nextCamps[0];
+      nextChats = [
+        {
+          id: `msg-welcome-${Date.now()}`,
+          sender: 'master',
+          role: 'assistant',
+          content: remainingCamp
+            ? `Switched to campaign "${remainingCamp.name}". Ready for your instructions!`
+            : `Hi! Ready to create your next campaign. Click "+ Create Campaign" to get started!`,
+          timestamp: 'Just now',
+        },
+      ];
+      if (nextActiveId) {
+        nextChatsMap[nextActiveId] = nextChats;
+      }
+    }
+
+    setChatMessages(nextChats);
+    setActivePlan(null);
+
+    persistWorkspace({
+      campaigns: nextCamps,
+      activeCampaignId: nextActiveId,
+      posts: nextPosts,
+      campaignChats: nextChatsMap,
+      chatMessages: nextChats,
+      activePlan: null,
+    });
+
+    logActivity('campaign_created', `Campaign deleted: "${targetCamp?.name || campId}"`, 'Removed campaign and associated assets.', '🗑️');
+
+    backendApi.deleteCampaign(campId).catch(() => {});
+  };
+
+  const clearChatMessages = () => {
+    const currentCamp = campaigns.find(c => c.id === activeCampaignId);
+    const freshChat: ChatMessage = {
+      id: `msg-welcome-${Date.now()}`,
+      sender: 'master',
+      role: 'assistant',
+      content: `Hi ${user?.name ? user.name.split(' ')[0] : 'Creator'}! 👋 Chat cleared. Ready for your instructions for "${currentCamp?.name || 'your campaign'}"!`,
+      timestamp: 'Just now',
+    };
+    setChatMessages([freshChat]);
+    setActivePlan(null);
+
+    const campId = activeCampaignId || 'global';
+    const nextChatsMap = {
+      ...campaignChats,
+      [campId]: [freshChat],
+    };
+    setCampaignChats(nextChatsMap);
+
+    persistWorkspace({
+      chatMessages: [freshChat],
+      campaignChats: nextChatsMap,
+      activePlan: null,
+    });
+
+    logActivity('plan_started', 'Chat Cleared', 'Reset agent conversation and cleared active plan.', '🧹');
   };
 
   const updateAgentStatus = (agentId: AgentId, status: AgentStatus, task?: string) => {
@@ -644,6 +812,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const trimmed = content.trim();
     if (!trimmed) return;
 
+    const campKey = activeCampaign.id || activeCampaignId || 'global';
+    const saveUpdatedChats = (chats: ChatMessage[], planToPersist?: AgentPlan | null) => {
+      setChatMessages(chats);
+      setCampaignChats(prev => {
+        const nextMap = { ...prev, [campKey]: chats };
+        persistWorkspace({
+          chatMessages: chats,
+          campaignChats: nextMap,
+          ...(planToPersist !== undefined ? { activePlan: planToPersist } : {}),
+        });
+        return nextMap;
+      });
+    };
+
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       sender: 'user',
@@ -653,7 +835,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const nextChats = [...chatMessages, userMsg];
-    setChatMessages(nextChats);
+    saveUpdatedChats(nextChats);
     updateAgentStatus('master', 'working', 'Analyzing user message...');
 
     // 1. Conversational / Status queries handling (e.g. "what are you doing", "who are you", "status")
@@ -670,11 +852,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           content: `Hi! I'm your Master Agent 🪄 coordinating your AI creative team:\n\n• **Creator Agent**: Ready to draft platform-native captions, curated hashtags, and image designs.\n• **Scheduler Agent**: Analyzing highest engagement windows to queue posts via Blotato.\n• **Research Agent**: Tracking live competitor trends and viral hooks.\n\nTo create a post, simply tell me what you'd like (for example: *"create one post for coffee shop"* or *"draft a launch announcement"*), and the team will generate the copy, assets, and scheduling plan!`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
-        setChatMessages(prev => {
-          const next = [...prev, reply];
-          persistWorkspace({ chatMessages: next });
-          return next;
-        });
+        const updated = [...nextChats, reply];
+        saveUpdatedChats(updated);
         updateAgentStatus('master', 'idle', 'Standing by for new tasks');
       }, 500);
       return;
@@ -755,8 +934,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const chatsWithPlan = [...nextChats, agentAck];
-    setChatMessages(chatsWithPlan);
-    persistWorkspace({ chatMessages: chatsWithPlan, activePlan: newPlan });
+    saveUpdatedChats(chatsWithPlan, newPlan);
 
     // 3. Fire-and-forget backend execution call in the background (Non-blocking)
     backendApi
@@ -798,11 +976,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateAgentStatus('creator', 'idle', 'Completed copy and hashtags');
       updateAgentStatus('scheduler', 'working', 'Computing optimal posting schedule...');
 
-      setChatMessages(prev => {
-        const next = prev.map(m => (m.plan && m.plan.id === planId ? { ...m, plan: step1DonePlan } : m));
-        persistWorkspace({ chatMessages: next, activePlan: step1DonePlan });
-        return next;
-      });
+      const updatedChatsStep1 = chatsWithPlan.map(m =>
+        m.plan && m.plan.id === planId ? { ...m, plan: step1DonePlan } : m
+      );
+      saveUpdatedChats(updatedChatsStep1, step1DonePlan);
 
       // 5. Step 2: Scheduler Finishes & Post is Delivered after another 2.0 seconds
       setTimeout(() => {
@@ -859,14 +1036,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           postPreview: createdPost,
         };
 
-        setChatMessages(prev => {
-          const updatedWithCompletedPlan = prev.map(m =>
-            m.plan && m.plan.id === planId ? { ...m, plan: step2DonePlan } : m
-          );
-          const final = [...updatedWithCompletedPlan, deliveryMsg];
-          persistWorkspace({ chatMessages: final, activePlan: step2DonePlan });
-          return final;
-        });
+        const updatedWithCompletedPlan = updatedChatsStep1.map(m =>
+          m.plan && m.plan.id === planId ? { ...m, plan: step2DonePlan } : m
+        );
+        const final = [...updatedWithCompletedPlan, deliveryMsg];
+        saveUpdatedChats(final, step2DonePlan);
 
         // Sync to backend API in the background
         backendApi
@@ -909,8 +1083,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         signInWithGoogle,
         campaigns,
         activeCampaign,
-        setActiveCampaignId,
+        setActiveCampaignId: handleSetActiveCampaignId,
         createCampaign,
+        deleteCampaign,
         agents,
         activeAgent,
         setActiveAgentId,
@@ -926,6 +1101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activePlan,
         sendMessage,
         cancelPlan,
+        clearChatMessages,
         activities,
         logActivity,
         loadDemoTemplate,

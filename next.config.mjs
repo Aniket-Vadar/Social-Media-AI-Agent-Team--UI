@@ -18,7 +18,7 @@ const securityHeaders = [
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: https: blob:;
       connect-src 'self' https:;
-      frame-src 'self' https://social-media-ai-agent-team-backend.onrender.com;
+      frame-src 'self' https://social-media-ai-agent-team-backend.onrender.com https://*.e2b.dev https:;
       frame-ancestors 'none';
     `.replace(/\s{2,}/g, ' ').trim(),
   },

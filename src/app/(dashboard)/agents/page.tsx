@@ -18,25 +18,27 @@ import {
   Check,
   RotateCcw,
   Ban,
-  Maximize2,
-  Shield,
   Search,
+  Trash2,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { AgentId } from '@/types';
 import { Header } from '@/components/layout/Header';
 import { OfficeCanvas } from '@/components/office/OfficeCanvas';
+import { LiveVirtualBox } from '@/components/sandbox/LiveVirtualBox';
 
 export default function AgentsPage() {
   const {
     agents,
     activeAgent,
+    activeCampaign,
     setActiveAgentId,
     pauseResumeAgent,
     chatMessages,
     sendMessage,
     activePlan,
     cancelPlan,
+    clearChatMessages,
     setIsImageEditorOpen,
     setEditingImage,
     updatePost,
@@ -45,8 +47,6 @@ export default function AgentsPage() {
 
   const [activeTab, setActiveTab] = useState<'chat' | 'tasks' | 'computer' | 'settings'>('chat');
   const [chatInput, setChatInput] = useState('');
-  const [isSandboxRunning, setIsSandboxRunning] = useState(true);
-  const [isSandboxTakeover, setIsSandboxTakeover] = useState(false);
 
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -147,6 +147,16 @@ export default function AgentsPage() {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2">
+                {activeAgent.id === 'researcher' && (
+                  <button
+                    onClick={() => setActiveTab('computer')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold hover:bg-indigo-100 transition-colors"
+                  >
+                    <Laptop className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Live Virtual Box</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => pauseResumeAgent(activeAgent.id)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -203,15 +213,19 @@ export default function AgentsPage() {
                 )}
               </button>
 
-              {/* Sandbox Computer Tab (Available for Researcher or Overview) */}
+              {/* Sandbox Virtual Box Tab */}
               <button
                 onClick={() => setActiveTab('computer')}
                 className={`py-3 relative transition-colors flex items-center gap-1.5 ${
-                  activeTab === 'computer' ? 'text-brand-600' : 'text-gray-500 hover:text-gray-800'
+                  activeTab === 'computer' ? 'text-brand-600 font-bold' : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
                 <Laptop className="w-3.5 h-3.5" />
-                <span>Computers</span>
+                <span>Virtual Box</span>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
                 {activeTab === 'computer' && (
                   <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500 rounded-full" />
                 )}
@@ -234,7 +248,30 @@ export default function AgentsPage() {
             <div className="flex-1 flex flex-col p-5 overflow-y-auto">
               {/* TAB 1: CHAT */}
               {activeTab === 'chat' && (
-                <div className="flex-1 flex flex-col justify-between space-y-4">
+                <div className="flex-1 flex flex-col justify-between space-y-3">
+                  {/* Chat Controls / Clear Chat */}
+                  <div className="flex items-center justify-between pb-2 border-b border-gray-100 text-[11px] text-gray-500">
+                    <span className="flex items-center gap-1.5 font-medium truncate">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                      <span className="truncate">
+                        Campaign: <strong className="text-gray-800">{activeCampaign?.name || 'All'}</strong>
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Clear chat messages and reset agents for this campaign?')) {
+                          clearChatMessages();
+                        }
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-200 transition-colors font-medium shadow-2xs flex-shrink-0"
+                      title="Clear chat history and reset agents"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Clear Chat</span>
+                    </button>
+                  </div>
+
                   {/* Messages Stream */}
                   <div className="space-y-4 overflow-y-auto pr-1">
                     {chatMessages.map(msg => {
@@ -545,111 +582,21 @@ export default function AgentsPage() {
                 </div>
               )}
 
-              {/* TAB 3: COMPUTERS (E2B SANDBOX VIEWER - Screenshot ref 11) */}
+              {/* TAB 3: LIVE VIRTUAL BOX / E2B SANDBOX VIEWER */}
               {activeTab === 'computer' && (
-                <div className="space-y-4">
-                  {/* Status Banner */}
-                  <div className="flex items-center justify-between p-3 rounded-2xl bg-sky-50/80 border border-sky-200 text-xs text-sky-900">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
-                      <span className="font-semibold">Running</span>
-                      <span className="text-sky-700">
-                        This agent is using it · Searching google for "coffee shop instagram launch trending reels"
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-sky-600">E2B Desktop #8491</span>
-                  </div>
-
-                  {/* Browser Mockup Window */}
-                  <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-                    {/* Browser Chrome Header */}
-                    <div className="bg-gray-100 px-4 py-2 border-b border-gray-200 flex items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                      </div>
-                      <div className="flex-1 bg-white rounded-lg px-3 py-1 text-[11px] text-gray-600 flex items-center gap-2 border border-gray-200 truncate">
-                        <Shield className="w-3 h-3 text-emerald-600" />
-                        <span className="truncate">
-                          https://www.google.com/search?q=coffee+shop+instagram+launch+trending+reels+morning+post+hashtags+2026
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => alert('Full screen cloud sandbox')}
-                        className="text-gray-400 hover:text-gray-600 p-1"
-                        title="Expand"
-                      >
-                        <Maximize2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Browser Content (Google AI Overview Mockup) */}
-                    <div className="p-4 bg-white space-y-4 max-h-[340px] overflow-y-auto text-xs">
-                      <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs">
-                        <Sparkles className="w-4 h-4" />
-                        <span>AI Overview · Social Media Trends 2026</span>
-                      </div>
-                      <p className="text-gray-700 leading-relaxed text-[11px]">
-                        Launching a coffee shop on Instagram in 2026 requires moving past basic latte-art and
-                        &quot;we&apos;re open&quot; flyers. The algorithm now prioritizes viewer behavior—such as watch
-                        time, saves, and shares—while keywords and on-screen text do the heavy lifting that hashtags
-                        used to do.
-                      </p>
-
-                      <div className="space-y-2 pt-1 border-t border-gray-100">
-                        <h5 className="font-bold text-gray-900 text-xs">Trending Morning Reel Concepts for 2026:</h5>
-                        <ul className="list-disc list-inside space-y-1 text-gray-600 text-[11px]">
-                          <li>
-                            <strong>The 5-to-9 Morning Ritual:</strong> Quick cinematic cuts of a barista dialing in
-                            the espresso machine, steam rising, and first customer sip.
-                          </li>
-                          <li>
-                            <strong>Secret Menu / Cold Brew Reveal:</strong> Showcase single-origin 18-hour cold brew
-                            pour with sound design (ASMR ice cubes).
-                          </li>
-                          <li>
-                            <strong>Neighborhood Loyalty Hook:</strong> Tag local landmarks and encourage community
-                            meetups.
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    {/* Bottom Control Bar */}
-                    <div className="p-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setIsSandboxRunning(prev => !prev)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors"
-                        >
-                          <Pause className="w-3 h-3" />
-                          <span>Pause</span>
-                        </button>
-                        <button
-                          onClick={() => setIsSandboxTakeover(prev => !prev)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                            isSandboxTakeover
-                              ? 'bg-amber-500 text-white'
-                              : 'bg-brand-500 hover:bg-brand-600 text-white'
-                          }`}
-                        >
-                          <span>{isSandboxTakeover ? 'Release control' : 'Take over'}</span>
-                        </button>
-                      </div>
-                      <span className="text-[10px] text-gray-400">
-                        Pauses itself after 3 minutes without use
-                      </span>
-                    </div>
-                  </div>
-
+                <div className="space-y-3">
+                  <LiveVirtualBox
+                    initialUrl="https://trends.google.com"
+                    onSendToChat={(finding) => {
+                      sendMessage(finding);
+                      setActiveTab('chat');
+                    }}
+                  />
                   <p className="text-[11px] text-gray-400">
-                    This agent&apos;s own computer, so it can work while your other agents use theirs. Its logins and files
-                    stay on it between tasks.
+                    This agent&apos;s own live virtual box computer with browser viewport, E2B microVM streaming, and sandboxed CLI terminal.
                   </p>
                 </div>
               )}
-
               {/* TAB 4: SETTINGS */}
               {activeTab === 'settings' && (
                 <div className="space-y-5 text-xs">

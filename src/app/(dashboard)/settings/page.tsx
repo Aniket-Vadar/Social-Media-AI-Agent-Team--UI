@@ -32,6 +32,7 @@ export default function SettingsPage() {
     user,
     signOut,
     campaigns,
+    deleteCampaign,
     posts,
     loadDemoTemplate,
     resetToFresh,
@@ -423,6 +424,32 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+
+        {/* Active Campaign Management */}
+        {activeCampaign?.id && (
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{activeCampaign.logo}</span>
+                <h3 className="font-bold text-sm text-gray-900">Current Campaign: {activeCampaign.name}</h3>
+              </div>
+              <p className="text-xs text-gray-500">
+                Created with {activeCampaign.officeTheme} office theme. Delete this campaign, its posts, and isolated chat stream.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (window.confirm(`Delete campaign "${activeCampaign.name}"? This will delete all its posts and cannot be undone.`)) {
+                  deleteCampaign(activeCampaign.id);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-semibold text-xs transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Campaign</span>
+            </button>
+          </div>
+        )}
 
         {/* Workspace Data & Persistence Management */}
         <div className="space-y-4">

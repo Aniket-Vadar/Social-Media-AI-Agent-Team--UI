@@ -20,6 +20,7 @@ import {
   LogOut,
   LogIn,
   BookOpen,
+  Trash2,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
@@ -32,6 +33,7 @@ export const Sidebar: React.FC = () => {
     campaigns,
     activeCampaign,
     setActiveCampaignId,
+    deleteCampaign,
     setIsCreateCampaignOpen,
     sidebarCollapsed,
     setSidebarCollapsed,
@@ -122,26 +124,43 @@ export const Sidebar: React.FC = () => {
               </div>
               <div className="space-y-1 my-1">
                 {campaigns.map(camp => (
-                  <button
+                  <div
                     key={camp.id}
-                    onClick={() => {
-                      setActiveCampaignId(camp.id);
-                      setCampaignMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all group ${
                       camp.id === activeCampaign.id
                         ? 'bg-indigo-50/80 text-indigo-700 font-semibold'
                         : 'text-gray-700 hover:bg-gray-50'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 truncate">
+                    <button
+                      onClick={() => {
+                        setActiveCampaignId(camp.id);
+                        setCampaignMenuOpen(false);
+                      }}
+                      className="flex-1 flex items-center gap-2 truncate text-left py-0.5"
+                    >
                       <span className="text-sm">{camp.logo}</span>
                       <span className="truncate">{camp.name}</span>
+                    </button>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {camp.id === activeCampaign.id && (
+                        <Check className="w-3.5 h-3.5 text-indigo-600" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Delete campaign "${camp.name}"? This will remove its posts and chat history.`)) {
+                            deleteCampaign(camp.id);
+                          }
+                        }}
+                        className="p-1 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-70 group-hover:opacity-100"
+                        title={`Delete ${camp.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    {camp.id === activeCampaign.id && (
-                      <Check className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                    )}
-                  </button>
+                  </div>
                 ))}
               </div>
 
