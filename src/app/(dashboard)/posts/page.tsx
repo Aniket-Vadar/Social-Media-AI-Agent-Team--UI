@@ -33,6 +33,7 @@ export default function PostsPage() {
     setIsImageEditorOpen,
     setEditingImage,
     setSelectedPostForDetail,
+    loadDemoTemplate,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'all' | 'scheduled' | 'draft' | 'published'>('all');
@@ -312,10 +313,37 @@ export default function PostsPage() {
         })}
       </div>
 
-      {filteredPosts.length === 0 && (
+      {posts.length === 0 ? (
+        <div className="py-20 text-center space-y-4 bg-white rounded-3xl border border-gray-100 p-8 shadow-xs">
+          <div className="w-16 h-16 rounded-3xl bg-indigo-50 text-brand-600 flex items-center justify-center mx-auto shadow-inner">
+            <Layers className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5 max-w-md mx-auto">
+            <h4 className="text-base font-bold text-gray-900">Your Content Library is Empty</h4>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              You haven&apos;t created or scheduled any posts yet. Ask your Master Agent to plan a campaign or create a post manually with our visual editor.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => setIsCreatePostOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-md shadow-indigo-200 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create First Post</span>
+            </button>
+            <button
+              onClick={loadDemoTemplate}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold shadow-xs transition-colors"
+            >
+              <span>Load Sample Posts</span>
+            </button>
+          </div>
+        </div>
+      ) : filteredPosts.length === 0 ? (
         <div className="py-16 text-center space-y-3 bg-white rounded-3xl border border-gray-100">
           <Layers className="w-10 h-10 text-gray-300 mx-auto" />
-          <h4 className="text-sm font-bold text-gray-800">No posts found</h4>
+          <h4 className="text-sm font-bold text-gray-800">No matching posts</h4>
           <p className="text-xs text-gray-500 max-w-sm mx-auto">
             Try adjusting your search filters or ask the Creator Agent to generate fresh posts.
           </p>
@@ -326,7 +354,7 @@ export default function PostsPage() {
             Create new post
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
   Sparkles,
   LogOut,
   LogIn,
+  BookOpen,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
@@ -45,6 +46,7 @@ export const Sidebar: React.FC = () => {
     { label: 'Calendar', href: '/calendar', icon: Calendar },
     { label: 'Analytics', href: '/analytics', icon: BarChart3 },
     { label: 'Accounts', href: '/settings', icon: Link2 },
+    { label: 'API Docs', href: '/docs', icon: BookOpen, badge: 'Live' },
   ];
 
   const isRouteActive = (href: string) => {
@@ -74,22 +76,32 @@ export const Sidebar: React.FC = () => {
       {/* Campaign Selector */}
       <div className="px-3 pt-4 pb-2 relative">
         <button
-          onClick={() => setCampaignMenuOpen(prev => !prev)}
+          onClick={() => {
+            if (campaigns.length === 0) {
+              setIsCreateCampaignOpen(true);
+            } else {
+              setCampaignMenuOpen(prev => !prev);
+            }
+          }}
           className={`w-full flex items-center gap-3 p-2.5 rounded-2xl border border-gray-100/90 bg-gray-50/70 hover:bg-gray-100/70 hover:border-gray-200 transition-all text-left ${
             sidebarCollapsed ? 'justify-center p-2' : ''
           }`}
-          title={activeCampaign.name}
+          title={campaigns.length === 0 ? 'Create First Campaign' : activeCampaign.name}
         >
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 shadow-sm"
-            style={{ backgroundColor: `${activeCampaign.color}15`, color: activeCampaign.color }}
+            style={{ backgroundColor: `${activeCampaign?.color || '#6D5EF5'}15`, color: activeCampaign?.color || '#6D5EF5' }}
           >
-            {activeCampaign.logo}
+            {campaigns.length === 0 ? '✨' : activeCampaign.logo}
           </div>
           {!sidebarCollapsed && (
             <div className="flex-1 min-w-0 pr-1">
-              <div className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">Campaign</div>
-              <div className="text-xs font-semibold text-gray-800 truncate">{activeCampaign.name}</div>
+              <div className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">
+                {campaigns.length === 0 ? 'New Workspace' : 'Campaign'}
+              </div>
+              <div className="text-xs font-semibold text-gray-800 truncate">
+                {campaigns.length === 0 ? '+ Create Campaign' : activeCampaign.name}
+              </div>
             </div>
           )}
           {!sidebarCollapsed && (

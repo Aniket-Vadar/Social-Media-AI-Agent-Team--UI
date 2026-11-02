@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Link2,
   Key,
@@ -15,19 +16,32 @@ import {
   Sparkles,
   LogOut,
   User,
+  Database,
+  Trash2,
+  Zap,
+  BookOpen,
+  Server,
+  RefreshCw,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
+import { BACKEND_URL, BACKEND_DOCS_URL, backendApi } from '@/lib/api/backend';
 
 export default function SettingsPage() {
   const {
     user,
     signOut,
+    campaigns,
+    posts,
+    loadDemoTemplate,
+    resetToFresh,
     accounts,
     toggleAccountConnection,
     blotatoApiKey,
     setBlotatoApiKey,
     activeCampaign,
+    backendStatus,
+    refreshBackendStatus,
   } = useApp();
 
   const [isReplacingKey, setIsReplacingKey] = useState(false);
@@ -56,6 +70,77 @@ export default function SettingsPage() {
 
       {/* Main Container */}
       <div className="max-w-4xl space-y-8 select-none">
+        {/* Section: Backend & API Documentation */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-xl bg-indigo-50 text-indigo-600">
+              <Server className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">AI Agent Backend & API Documentation</h2>
+              <p className="text-xs text-gray-400">
+                Connected production backend serving FastAPI, LangGraph agents, and media processing.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-gray-900">{BACKEND_URL}</span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                      backendStatus === 'online'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        backendStatus === 'online' ? 'bg-emerald-500' : 'bg-amber-500'
+                      }`}
+                    />
+                    {backendStatus === 'online' ? 'Production Online' : 'Connecting / Waking'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Provides 20+ REST & SSE endpoints for agent execution, post generation, scheduling, and analytics.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => refreshBackendStatus()}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all"
+                  title="Check health probe"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-gray-500" />
+                  <span>Check Health</span>
+                </button>
+
+                <Link
+                  href="/docs"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xs transition-all"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>API Docs</span>
+                </Link>
+
+                <a
+                  href={BACKEND_DOCS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-700 text-xs font-semibold transition-all"
+                >
+                  <span>Swagger UI</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Section: Integrations (Matches screenshot ref 18) */}
         <div className="space-y-4">
           <div className="flex items-center gap-2.5">
@@ -336,6 +421,67 @@ export default function SettingsPage() {
               <LogOut className="w-4 h-4 text-red-500" />
               <span>Sign out</span>
             </button>
+          </div>
+        </div>
+
+        {/* Workspace Data & Persistence Management */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-xl bg-purple-50 text-purple-600">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Workspace Data & Persistence</h2>
+              <p className="text-xs text-gray-400">
+                Manage your campaigns, posts, agent chats, and audit trail stored in Supabase PostgreSQL.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-100 space-y-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Active Campaigns</span>
+                <div className="text-2xl font-extrabold text-gray-900">{campaigns.length}</div>
+                <span className="text-[11px] text-gray-500">Multi-tenant isolated</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-100 space-y-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Content Library</span>
+                <div className="text-2xl font-extrabold text-gray-900">{posts.length}</div>
+                <span className="text-[11px] text-gray-500">Drafts & scheduled posts</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-100 space-y-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Audit Security</span>
+                <div className="text-2xl font-extrabold text-emerald-600">Active</div>
+                <span className="text-[11px] text-gray-500">Row Level Security (RLS)</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-100">
+              <div className="text-xs text-gray-500">
+                Switch between clean new-user mode or load sample coffee shop demo data to test agents.
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={resetToFresh}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 hover:border-red-200 hover:bg-red-50 text-gray-600 hover:text-red-700 text-xs font-semibold transition-colors"
+                  title="Wipes sample campaigns and posts back to a fresh 0-data workspace"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Reset to Clean Slate (0 Data)</span>
+                </button>
+
+                <button
+                  onClick={loadDemoTemplate}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold transition-colors shadow-xs"
+                  title="Loads sample Coffee Shop launch campaign, posts, and plans"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Load Sample Demo Data</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

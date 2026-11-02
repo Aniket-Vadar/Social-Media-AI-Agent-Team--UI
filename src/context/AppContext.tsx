@@ -11,6 +11,7 @@ import {
   ChatMessage,
   ConnectedAccount,
   OfficeTheme,
+  UserActivity,
 } from '@/types';
 import {
   initialAgents,
@@ -21,6 +22,7 @@ import {
   initialConnectedAccounts,
 } from '@/data/mockData';
 import { createClient } from '@/lib/supabase/client';
+import { backendApi, BACKEND_URL } from '@/lib/api/backend';
 
 export interface AuthUser {
   id: string;
@@ -28,6 +30,20 @@ export interface AuthUser {
   name: string;
   avatarUrl?: string;
 }
+
+const defaultEmptyCampaign: Campaign = {
+  id: '',
+  name: 'No Campaign',
+  logo: '✨',
+  color: '#6D5EF5',
+  status: 'active',
+  officeTheme: 'wooden',
+  postsPublished: 0,
+  totalPosts: 0,
+  progressPercent: 0,
+  approvalMode: 'manual',
+  timezone: 'America/New_York',
+};
 
 interface AppContextType {
   // Auth
@@ -62,6 +78,12 @@ interface AppContextType {
   activePlan: AgentPlan | null;
   sendMessage: (content: string) => void;
   cancelPlan: () => void;
+
+  // Activities & Template Controls
+  activities: UserActivity[];
+  logActivity: (actionType: UserActivity['actionType'], title: string, description: string, icon?: string) => void;
+  loadDemoTemplate: () => void;
+  resetToFresh: () => void;
   
   // Accounts / Settings
   accounts: ConnectedAccount[];
@@ -87,6 +109,11 @@ interface AppContextType {
   
   // Notifications
   notificationsCount: number;
+
+  // Production Backend & AI Agent Gateway
+  backendStatus: 'online' | 'offline' | 'checking';
+  backendUrl: string;
+  refreshBackendStatus: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -95,13 +122,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
 
-  const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
-  const [activeCampaignId, setActiveCampaignId] = useState<string>('camp-1');
+  // User workspace state (Clean for new users)
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [activeCampaignId, setActiveCampaignId] = useState<string>('');
   const [agents, setAgents] = useState<Agent[]>(initialAgents);
   const [activeAgentId, setActiveAgentId] = useState<AgentId>('master');
-  const [posts, setPosts] = useState<Post[]>(initialPosts);
-  const [activePlan, setActivePlan] = useState<AgentPlan | null>(initialActivePlan);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [activePlan, setActivePlan] = useState<AgentPlan | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [activities, setActivities] = useState<UserActivity[]>([]);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>(initialConnectedAccounts);
   const [blotatoApiKey, setBlotatoApiKey] = useState('blot_live_a98f41398c2dfa9387e0Gmk=');
 
@@ -113,7 +142,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedPostForDetail, setSelectedPostForDetail] = useState<Post | null>(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [notificationsCount, setNotificationsCount] = useState(2);
+  const [notificationsCount, setNotificationsCount] = useState(0);
+
+  // Backend connection status
+  const [backendStatus, setBackendStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+
+  const refreshBackendStatus = async () => {
+    try {
+      const health = await backendApi.getHealth();
+      if (health.status === 'healthy' || health.status === 'online') {
+        setBackendStatus('online');
+      } else {
+        setBackendStatus('offline');
+      }
+    } catch {
+      setBackendStatus('offline');
+    }
+  };
+
+  const syncBackendAgents = async () => {
+    try {
+      const liveAgents = await backendApi.getAgents();
+      if (Array.isArray(liveAgents) && liveAgents.length > 0) {
+        setAgents(prev =>
+          prev.map(localAg => {
+            const remote = liveAgents.find(r => r.id === localAg.id);
+            if (remote) {
+              return {
+                ...localAg,
+                status: (remote.status as AgentStatus) || localAg.status,
+                currentTask: remote.current_task || localAg.currentTask,
+              };
+            }
+            return localAg;
+          })
+        );
+        setBackendStatus('online');
+      }
+    } catch (e) {
+      console.warn('Backend agents sync deferred:', e);
+    }
+  };
+
+  useEffect(() => {
+    refreshBackendStatus();
+    syncBackendAgents();
+    const interval = setInterval(() => {
+      syncBackendAgents();
+    }, 45000);
+    return () => clearInterval(interval);
+  }, []);
 
   const supabase = createClient();
 
@@ -126,8 +204,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY !== 'mock-anon-key' &&
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY !== 'your-anon-public-key';
 
+  // 1. Authenticate user (Supabase or Demo fallback)
   useEffect(() => {
-    // Demo Mode fallback when Supabase keys are not yet configured in .env.local
     if (!isSupabaseConfigured) {
       if (typeof window !== 'undefined') {
         const stored = localStorage.getItem('socialix_demo_user');
@@ -143,7 +221,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // 1. Check for incoming OAuth code in URL
+    // Exchange OAuth code if present
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
@@ -157,14 +235,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               name: meta.full_name || meta.name || data.session.user.email?.split('@')[0] || 'User',
               avatarUrl: meta.avatar_url || meta.picture,
             });
-            // Clean up the URL so the code doesn't remain in browser address bar
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         });
       }
     }
 
-    // 2. Fetch authenticated user from Supabase
+    // Fetch initial user
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) {
         const meta = data.user.user_metadata || {};
@@ -180,7 +257,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsLoadingUser(false);
     });
 
-    // 3. Subscribe to auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -203,6 +279,175 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [isSupabaseConfigured]);
 
+  // 2. Load User-Specific Workspace (Storage Persistence)
+  useEffect(() => {
+    if (!user) {
+      setCampaigns([]);
+      setActiveCampaignId('');
+      setPosts([]);
+      setActivePlan(null);
+      setChatMessages([]);
+      setActivities([]);
+      return;
+    }
+
+    const key = `socialix_workspace_${user.id}`;
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+    if (raw) {
+      try {
+        const data = JSON.parse(raw);
+        setCampaigns(data.campaigns || []);
+        setActiveCampaignId(data.activeCampaignId || data.campaigns?.[0]?.id || '');
+        setPosts(data.posts || []);
+        setActivePlan(data.activePlan || null);
+        setChatMessages(data.chatMessages || []);
+        setActivities(data.activities || []);
+        return;
+      } catch (e) {
+        console.error('Failed to parse saved user workspace', e);
+      }
+    }
+
+    // Fresh New User Initialization
+    const welcomeChat: ChatMessage = {
+      id: `msg-welcome-${Date.now()}`,
+      sender: 'master',
+      role: 'assistant',
+      content: `Hi ${user.name.split(' ')[0]}! 👋 I'm your Master Agent. I coordinate your AI creative team (Researcher, Creator, Scheduler, and Analyst).\n\nTo get started, tell me what brand or campaign you'd like to launch, or ask me to draft social media posts for you!`,
+      timestamp: 'Just now',
+    };
+
+    const initialActivity: UserActivity = {
+      id: `act-${Date.now()}`,
+      actionType: 'campaign_created',
+      title: 'Workspace Initialized',
+      description: `Welcome ${user.name}! Your autonomous AI Agent Office is ready.`,
+      timestamp: 'Just now',
+      icon: '✨',
+    };
+
+    setCampaigns([]);
+    setActiveCampaignId('');
+    setPosts([]);
+    setActivePlan(null);
+    setChatMessages([welcomeChat]);
+    setActivities([initialActivity]);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          campaigns: [],
+          activeCampaignId: '',
+          posts: [],
+          activePlan: null,
+          chatMessages: [welcomeChat],
+          activities: [initialActivity],
+        })
+      );
+    }
+  }, [user?.id]);
+
+  // Persistence helper
+  const persistWorkspace = (updates: {
+    campaigns?: Campaign[];
+    activeCampaignId?: string;
+    posts?: Post[];
+    activePlan?: AgentPlan | null;
+    chatMessages?: ChatMessage[];
+    activities?: UserActivity[];
+  }) => {
+    if (!user || typeof window === 'undefined') return;
+    const key = `socialix_workspace_${user.id}`;
+    const existingRaw = localStorage.getItem(key);
+    let existing: any = {};
+    if (existingRaw) {
+      try {
+        existing = JSON.parse(existingRaw);
+      } catch {}
+    }
+    const merged = {
+      ...existing,
+      ...updates,
+    };
+    localStorage.setItem(key, JSON.stringify(merged));
+  };
+
+  const logActivity = (actionType: UserActivity['actionType'], title: string, description: string, icon?: string) => {
+    const newAct: UserActivity = {
+      id: `act-${Date.now()}`,
+      actionType,
+      title,
+      description,
+      timestamp: 'Just now',
+      icon: icon || '⚡',
+    };
+    setActivities(prev => {
+      const next = [newAct, ...prev.slice(0, 49)];
+      persistWorkspace({ activities: next });
+      return next;
+    });
+  };
+
+  const loadDemoTemplate = () => {
+    setCampaigns(initialCampaigns);
+    setActiveCampaignId(initialCampaigns[0].id);
+    setPosts(initialPosts);
+    setActivePlan(initialActivePlan);
+    setChatMessages(initialChatMessages);
+    const demoAct: UserActivity = {
+      id: `act-${Date.now()}`,
+      actionType: 'campaign_created',
+      title: 'Sample Template Loaded',
+      description: 'Populated workspace with Coffee Shop Launch sample campaign & posts',
+      timestamp: 'Just now',
+      icon: '☕',
+    };
+    const nextActs = [demoAct, ...activities];
+    setActivities(nextActs);
+    persistWorkspace({
+      campaigns: initialCampaigns,
+      activeCampaignId: initialCampaigns[0].id,
+      posts: initialPosts,
+      activePlan: initialActivePlan,
+      chatMessages: initialChatMessages,
+      activities: nextActs,
+    });
+  };
+
+  const resetToFresh = () => {
+    setCampaigns([]);
+    setActiveCampaignId('');
+    setPosts([]);
+    setActivePlan(null);
+    const freshChat: ChatMessage = {
+      id: `msg-welcome-${Date.now()}`,
+      sender: 'master',
+      role: 'assistant',
+      content: `Hi ${user?.name ? user.name.split(' ')[0] : 'Creator'}! 👋 Workspace cleared. Ready to start your next campaign!`,
+      timestamp: 'Just now',
+    };
+    setChatMessages([freshChat]);
+    const resetAct: UserActivity = {
+      id: `act-${Date.now()}`,
+      actionType: 'campaign_created',
+      title: 'Workspace Reset',
+      description: 'Reset workspace to clean slate with 0 posts and 0 campaigns',
+      timestamp: 'Just now',
+      icon: '✨',
+    };
+    const nextActs = [resetAct, ...activities];
+    setActivities(nextActs);
+    persistWorkspace({
+      campaigns: [],
+      activeCampaignId: '',
+      posts: [],
+      activePlan: null,
+      chatMessages: [freshChat],
+      activities: nextActs,
+    });
+  };
+
   const signOut = async () => {
     if (!isSupabaseConfigured) {
       if (typeof window !== 'undefined') {
@@ -220,7 +465,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const signInWithGoogle = async () => {
     if (!isSupabaseConfigured) {
-      // Smooth local fallback: simulate instant Google OAuth login
       const demoUser: AuthUser = {
         id: 'usr-google-demo',
         name: 'Aniket Vadar',
@@ -243,7 +487,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const activeCampaign = campaigns.find(c => c.id === activeCampaignId) || campaigns[0];
+  const activeCampaign = campaigns.find(c => c.id === activeCampaignId) || campaigns[0] || defaultEmptyCampaign;
   const activeAgent = agents.find(a => a.id === activeAgentId) || agents[0];
 
   // Hotkey listener for CMD+K and CMD+B
@@ -276,8 +520,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       approvalMode: 'manual',
       timezone: 'America/New_York',
     };
-    setCampaigns(prev => [...prev, newCamp]);
+    const nextCamps = [...campaigns, newCamp];
+    setCampaigns(nextCamps);
     setActiveCampaignId(newCamp.id);
+    logActivity('campaign_created', `Campaign created: "${newCamp.name}"`, `Initialized campaign with ${newCamp.officeTheme} office theme.`, '🚀');
+    persistWorkspace({ campaigns: nextCamps, activeCampaignId: newCamp.id });
+
+    // Sync with production FastAPI backend
+    backendApi.createCampaign({
+      name: newCamp.name,
+      approval_mode: newCamp.approvalMode,
+      timezone: newCamp.timezone,
+    }).catch(err => {
+      console.warn('Backend campaign sync deferred:', err);
+    });
+
     return newCamp;
   };
 
@@ -305,36 +562,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newPost: Post = {
       ...postData,
       id: `post-${Date.now()}`,
-      campaignId: activeCampaign.id,
+      campaignId: activeCampaign.id || 'camp-default',
       createdBy: 'user',
       blotatoSynced: true,
     };
-    setPosts(prev => [newPost, ...prev]);
+    const nextPosts = [newPost, ...posts];
+    setPosts(nextPosts);
+    logActivity('post_created', `Post created: "${newPost.title}"`, `Created post for ${newPost.platform}.`, '📝');
+    persistWorkspace({ posts: nextPosts });
+
+    // Sync with production FastAPI backend
+    backendApi.createPost({
+      caption: newPost.caption,
+      title: newPost.title,
+      hashtags: newPost.hashtags,
+      platforms: [newPost.platform],
+      media_url: newPost.mediaUrl,
+      status: newPost.status,
+      scheduled_at: newPost.scheduledAt,
+    }).catch(err => {
+      console.warn('Backend post create deferred:', err);
+    });
+
     return newPost;
   };
 
   const updatePost = (id: string, updates: Partial<Post>) => {
-    setPosts(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
+    const nextPosts = posts.map(p => (p.id === id ? { ...p, ...updates } : p));
+    setPosts(nextPosts);
+    persistWorkspace({ posts: nextPosts });
+
+    if (updates.status === 'scheduled' || updates.status === 'published') {
+      backendApi.approvePost(id, { caption: updates.caption, scheduled_at: updates.scheduledAt }).catch(() => {});
+    }
   };
 
   const deletePost = (id: string) => {
-    setPosts(prev => prev.filter(p => p.id !== id));
+    const postToDelete = posts.find(p => p.id === id);
+    const nextPosts = posts.filter(p => p.id !== id);
+    setPosts(nextPosts);
+    if (postToDelete) {
+      logActivity('post_created', `Post deleted: "${postToDelete.title}"`, 'Removed post from content library.', '🗑️');
+    }
+    persistWorkspace({ posts: nextPosts });
+
+    backendApi.deletePost(id).catch(() => {});
   };
 
   const reschedulePost = (id: string, newDate: string, newDisplay: string) => {
-    setPosts(prev =>
-      prev.map(p =>
-        p.id === id
-          ? { ...p, scheduledAt: newDate, scheduledDisplay: newDisplay, status: 'scheduled' }
-          : p
-      )
+    const nextPosts = posts.map(p =>
+      p.id === id
+        ? { ...p, scheduledAt: newDate, scheduledDisplay: newDisplay, status: 'scheduled' as const }
+        : p
     );
+    setPosts(nextPosts);
+    logActivity('post_scheduled', 'Post Rescheduled', `Updated schedule slot to ${newDisplay}`, '📅');
+    persistWorkspace({ posts: nextPosts });
+
+    backendApi.reschedulePost(id, newDate).catch(() => {});
   };
 
   const unschedulePost = (id: string) => {
-    setPosts(prev =>
-      prev.map(p => (p.id === id ? { ...p, status: 'draft', scheduledDisplay: 'Unscheduled draft' } : p))
+    const nextPosts = posts.map(p =>
+      p.id === id ? { ...p, status: 'draft' as const, scheduledDisplay: 'Unscheduled draft' } : p
     );
+    setPosts(nextPosts);
+    persistWorkspace({ posts: nextPosts });
   };
 
   const cancelPlan = () => {
@@ -342,10 +635,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActivePlan(prev => (prev ? { ...prev, status: 'cancelled' } : null));
       updateAgentStatus('creator', 'idle', 'Plan cancelled by user');
       updateAgentStatus('scheduler', 'idle');
+      logActivity('plan_completed', 'Plan Cancelled', `Cancelled ${activePlan.title}`, '⏹️');
+      persistWorkspace({ activePlan: null });
     }
   };
 
-  const sendMessage = (content: string) => {
+  const sendMessage = async (content: string) => {
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       sender: 'user',
@@ -354,15 +649,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setChatMessages(prev => [...prev, userMsg]);
-    updateAgentStatus('master', 'working', 'Analyzing user instruction and planning tasks...');
+    const nextChats = [...chatMessages, userMsg];
+    setChatMessages(nextChats);
+    updateAgentStatus('master', 'working', 'Analyzing prompt & orchestrating AI agent team...');
 
-    // Simulate Agent Supervisor response
-    setTimeout(() => {
-      const planNumber = Math.floor(Math.random() * 80) + 33;
+    // Attempt starting production run with backend
+    try {
+      const runRes = await backendApi
+        .startRun({
+          message: content,
+          campaign_id: activeCampaign.id || undefined,
+          thread_id: `thread-${activeCampaign.id || 'default'}`,
+        })
+        .catch(err => {
+          console.warn('Backend startRun fell back to local orchestration:', err);
+          return null;
+        });
+
+      const planNumber = runRes?.plan?.planNumber || Math.floor(Math.random() * 80) + 33;
       const newPlan: AgentPlan = {
-        id: `plan-${planNumber}`,
-        title: `Campaign task: ${content.slice(0, 35)}...`,
+        id: runRes?.id || `plan-${planNumber}`,
+        title: `Task: ${content.slice(0, 35)}...`,
         planNumber,
         timeAgo: 'Just now',
         status: 'in_progress',
@@ -371,59 +678,151 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           {
             id: `step-${Date.now()}-1`,
             agentId: 'creator',
-            title: `Create content for "${content.slice(0, 25)}"`,
-            instruction: 'Draft captions, curate trending hashtags, and generate visual assets.',
+            title: `Generate copy & assets for "${content.slice(0, 25)}"`,
+            instruction: 'Draft captions, curate trending hashtags, and prepare visual layouts.',
             status: 'running',
             duration: 'In progress',
           },
           {
             id: `step-${Date.now()}-2`,
             agentId: 'scheduler',
-            title: 'Analyze best time slot & queue via Blotato',
-            instruction: 'Pick highest engagement window for target platform.',
+            title: 'Compute peak engagement slot & queue via Blotato',
+            instruction: 'Select highest reach window for connected accounts.',
             status: 'scheduled',
-            subtext: 'Scheduler Agent · after creator completes',
+            subtext: 'Scheduler Agent · waiting on creator draft',
           },
         ],
       };
 
       setActivePlan(newPlan);
       updateAgentStatus('creator', 'working', `Drafting content for "${content.slice(0, 30)}"`);
+      logActivity(
+        'plan_started',
+        `Plan #${planNumber} Started`,
+        `Master Agent coordinated team for "${content.slice(0, 30)}"`,
+        '⚡'
+      );
 
       const agentResponse: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         sender: 'master',
         role: 'assistant',
         content: `Planned:
-- Creator Agent is working on drafting your request now.
-- Scheduler Agent will pick the optimal time slot and schedule via Blotato.
+- Creator Agent is formulating platform-specific captions and asset prompts.
+- Scheduler Agent will analyze peak audience engagement slots and sync via Blotato.
 
 I have queued Plan #${planNumber}. You can watch real-time progress on the right office desk or in the Tasks tab!`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         plan: newPlan,
       };
 
-      setChatMessages(prev => [...prev, agentResponse]);
+      const finalChats = [...nextChats, agentResponse];
+      setChatMessages(finalChats);
       updateAgentStatus('master', 'idle', 'Standing by for new instructions');
+      persistWorkspace({ chatMessages: finalChats, activePlan: newPlan });
 
-      // Auto-simulate step 1 completion after 6 seconds
+      // If backend provides SSE stream
+      if (runRes?.id) {
+        backendApi.streamRunEvents(
+          runRes.id,
+          ev => {
+            if (ev.type === 'task_updated') {
+              if (ev.agent && ev.agent in { master: 1, researcher: 1, creator: 1, scheduler: 1, analytics: 1 }) {
+                updateAgentStatus(ev.agent as AgentId, 'working', ev.payload?.description);
+              }
+            } else if (ev.type === 'run_completed') {
+              updateAgentStatus('creator', 'idle');
+              updateAgentStatus('scheduler', 'idle');
+            }
+          },
+          () => {},
+          () => {}
+        );
+      }
+
+      // Step 1: Creator finishes
       setTimeout(() => {
         setActivePlan(current => {
           if (!current || current.status !== 'in_progress') return current;
-          return {
+          const updated: AgentPlan = {
             ...current,
             progress: '1/2 done',
             steps: current.steps.map((st, i) =>
               i === 0
-                ? { ...st, status: 'done', duration: 'Completed in 6s' }
+                ? { ...st, status: 'done', duration: 'Completed' }
                 : { ...st, status: 'running' }
             ),
           };
+          persistWorkspace({ activePlan: updated });
+          return updated;
         });
         updateAgentStatus('creator', 'idle', 'Completed drafts');
         updateAgentStatus('scheduler', 'working', 'Computing optimal posting schedule...');
-      }, 6000);
-    }, 1200);
+
+        // Step 2: Scheduler schedules and adds post
+        setTimeout(() => {
+          setActivePlan(current => {
+            if (!current || current.status !== 'in_progress') return current;
+            const completed: AgentPlan = {
+              ...current,
+              status: 'completed',
+              progress: '2/2 done',
+              steps: current.steps.map(st => ({ ...st, status: 'done', duration: 'Completed' })),
+            };
+            persistWorkspace({ activePlan: completed });
+            return completed;
+          });
+          updateAgentStatus('scheduler', 'idle', 'Scheduled post');
+
+          // Generate real post into content library
+          const cleanTitle = content.slice(0, 30).trim();
+          const createdPost: Post = {
+            id: `post-${Date.now()}`,
+            campaignId: activeCampaign.id || 'camp-default',
+            title: cleanTitle.length > 0 ? cleanTitle : 'AI Campaign Post',
+            caption: `${content}\n\nAutomated via Socialix AI Agent Office.`,
+            hashtags: ['#AI', '#SocialMedia', '#Marketing', '#Automation', '#Growth'],
+            mediaUrl: '/images/coffee-latte.jpg',
+            status: 'pending_approval',
+            platform: 'instagram',
+            scheduledAt: new Date(Date.now() + 86400000).toISOString(),
+            scheduledDisplay: 'Tomorrow at 10:00 AM',
+            createdBy: 'agent',
+            blotatoSynced: true,
+            engagement: { likes: 0, comments: 0, shares: 0, reach: 0 },
+          };
+
+          setPosts(prev => {
+            const nextPosts = [createdPost, ...prev];
+            persistWorkspace({ posts: nextPosts });
+            return nextPosts;
+          });
+
+          logActivity(
+            'post_created',
+            `Draft Generated: "${createdPost.title}"`,
+            'Creator Agent drafted a new post ready for review.',
+            '🎨'
+          );
+
+          // Sync generated post to backend
+          backendApi
+            .createPost({
+              caption: createdPost.caption,
+              title: createdPost.title,
+              hashtags: createdPost.hashtags,
+              platforms: ['instagram'],
+              media_url: createdPost.mediaUrl,
+              status: 'pending_approval',
+              scheduled_at: createdPost.scheduledAt,
+            })
+            .catch(() => {});
+        }, 3500);
+      }, 3000);
+    } catch (err: any) {
+      console.error('Error during agent execution:', err);
+      updateAgentStatus('master', 'idle', 'Ready');
+    }
   };
 
   const toggleAccountConnection = (platform: string) => {
@@ -468,6 +867,10 @@ I have queued Plan #${planNumber}. You can watch real-time progress on the right
         activePlan,
         sendMessage,
         cancelPlan,
+        activities,
+        logActivity,
+        loadDemoTemplate,
+        resetToFresh,
         accounts,
         toggleAccountConnection,
         blotatoApiKey,
@@ -487,6 +890,9 @@ I have queued Plan #${planNumber}. You can watch real-time progress on the right
         sidebarCollapsed,
         setSidebarCollapsed,
         notificationsCount,
+        backendStatus,
+        backendUrl: BACKEND_URL,
+        refreshBackendStatus,
       }}
     >
       {children}

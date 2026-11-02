@@ -128,3 +128,13 @@ export interface EngagementPoint {
   views: number;
   engagement: number;
 }
+
+export interface UserActivity {
+  id: string;
+  actionType: 'post_created' | 'post_scheduled' | 'post_published' | 'plan_started' | 'plan_completed' | 'campaign_created';
+  title: string;
+  description: string;
+  timestamp: string;
+  icon?: string;
+}
+

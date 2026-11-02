@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
+import { backendApi } from '@/lib/api/backend';
 import {
   initialAnalyticsMetrics,
   initialDailyActivity,
@@ -28,15 +29,23 @@ export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'custom'>('7d');
   const [metricView, setMetricView] = useState<'views' | 'engagement'>('views');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncedTime, setSyncedTime] = useState('16 minutes ago');
+  const [syncedTime, setSyncedTime] = useState('Just now');
 
-  const handleSync = () => {
+  const handleSync = async () => {
     setIsSyncing(true);
-    setTimeout(() => {
-      setIsSyncing(false);
+    try {
+      await backendApi.getAnalyticsDashboard(dateRange);
       setSyncedTime('Just now');
-    }, 1200);
+    } catch {
+      setSyncedTime('Local cache');
+    } finally {
+      setIsSyncing(false);
+    }
   };
+
+  React.useEffect(() => {
+    handleSync();
+  }, [dateRange]);
 
   return (
     <div className="space-y-6">

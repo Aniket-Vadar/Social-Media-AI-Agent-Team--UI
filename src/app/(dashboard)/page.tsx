@@ -12,6 +12,9 @@ import {
   Clock,
   Layers,
   ChevronRight,
+  Plus,
+  Zap,
+  Activity,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
@@ -19,7 +22,17 @@ import { OfficeCanvas } from '@/components/office/OfficeCanvas';
 
 export default function OverviewPage() {
   const router = useRouter();
-  const { user, activeCampaign, posts, setActiveAgentId, setIsCreatePostOpen } = useApp();
+  const {
+    user,
+    campaigns,
+    activeCampaign,
+    posts,
+    setActiveAgentId,
+    setIsCreatePostOpen,
+    setIsCreateCampaignOpen,
+    activities,
+    loadDemoTemplate,
+  } = useApp();
 
   const scheduledPosts = posts.filter(p => p.status === 'scheduled');
   const nextPost = scheduledPosts[0];
@@ -37,6 +50,7 @@ export default function OverviewPage() {
   };
 
   const greetingName = user?.name ? user.name.split(' ')[0] : 'Creator';
+  const hasCampaigns = campaigns && campaigns.length > 0;
 
   return (
     <div className="space-y-6">
@@ -89,50 +103,84 @@ export default function OverviewPage() {
             </button>
           </div>
 
-          {/* Active Campaign Status Card */}
-          <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3.5">
-                <div
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center text-lg flex-shrink-0 shadow-sm"
-                  style={{ backgroundColor: `${activeCampaign.color}15`, color: activeCampaign.color }}
+          {/* New User Onboarding vs Active Campaign Card */}
+          {!hasCampaigns ? (
+            <div className="bg-gradient-to-tr from-indigo-50/80 via-purple-50/40 to-white rounded-3xl p-6 border border-indigo-100/90 shadow-sm space-y-4">
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-100/80 text-brand-600 text-[11px] font-bold">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Welcome to Socialix</span>
+                </div>
+                <h3 className="text-base font-bold text-gray-950">Deploy Your First AI Social Media Campaign</h3>
+                <p className="text-xs text-gray-500 max-w-lg leading-relaxed">
+                  Your agents (Researcher, Creator, Scheduler, Analyst) are stationed at their desks ready to work. Launch your first brand campaign to start researching viral hooks, generating imagery, and scheduling posts.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  onClick={() => setIsCreateCampaignOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-md shadow-indigo-200 transition-all active:scale-[0.99]"
                 >
-                  {activeCampaign.logo}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm text-gray-900">{activeCampaign.name}</h3>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      In progress
-                    </span>
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Create First Campaign</span>
+                </button>
+
+                <button
+                  onClick={loadDemoTemplate}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-900 font-semibold text-xs shadow-xs transition-all"
+                  title="Loads sample Coffee Shop launch campaign to test all features"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Load Sample Demo Data</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3.5">
+                  <div
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center text-lg flex-shrink-0 shadow-sm"
+                    style={{ backgroundColor: `${activeCampaign.color}15`, color: activeCampaign.color }}
+                  >
+                    {activeCampaign.logo}
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Researching trends, creating engaging content and scheduling posts to grow your brand.
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-sm text-gray-900">{activeCampaign.name}</h3>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        In progress
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Researching trends, creating engaging content and scheduling posts to grow your brand.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-xl font-bold text-gray-900">{activeCampaign.progressPercent}%</div>
+                  <div className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Complete</div>
                 </div>
               </div>
 
-              <div className="text-right">
-                <div className="text-xl font-bold text-gray-900">{activeCampaign.progressPercent}%</div>
-                <div className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Complete</div>
+              {/* Progress Bar */}
+              <div className="space-y-1.5 pt-1">
+                <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-indigo-500 to-brand-500 h-full rounded-full transition-all duration-700"
+                    style={{ width: `${activeCampaign.progressPercent}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[11px] text-gray-400 font-medium">
+                  <span>{activeCampaign.postsPublished} of {activeCampaign.totalPosts} posts published</span>
+                  <span>Auto-pilot on</span>
+                </div>
               </div>
             </div>
-
-            {/* Progress Bar */}
-            <div className="space-y-1.5 pt-1">
-              <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-indigo-500 to-brand-500 h-full rounded-full transition-all duration-700"
-                  style={{ width: `${activeCampaign.progressPercent}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-[11px] text-gray-400 font-medium">
-                <span>{activeCampaign.postsPublished} of {activeCampaign.totalPosts} posts published</span>
-                <span>Auto-pilot on</span>
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* Upcoming Posts Section */}
           <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
@@ -155,7 +203,9 @@ export default function OverviewPage() {
                 <div className="flex items-center gap-3.5">
                   <div className="w-12 h-12 rounded-xl bg-white border border-gray-200/80 shadow-xs flex flex-col items-center justify-center text-center flex-shrink-0">
                     <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">OCT</span>
-                    <span className="text-sm font-extrabold text-gray-900 leading-none">16</span>
+                    <span className="text-sm font-extrabold text-gray-900 leading-none">
+                      {new Date(nextPost.scheduledAt).getDate() || 16}
+                    </span>
                   </div>
                   <div className="space-y-0.5">
                     <h4 className="text-xs font-bold text-gray-900 group-hover:text-brand-600 transition-colors">
@@ -166,7 +216,7 @@ export default function OverviewPage() {
                         {nextPost.platform}
                       </span>
                       <span>•</span>
-                      <span>Fri · 9:00 PM</span>
+                      <span>{nextPost.scheduledDisplay || 'Scheduled'}</span>
                     </div>
                   </div>
                 </div>
@@ -174,20 +224,57 @@ export default function OverviewPage() {
                 <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-700 group-hover:translate-x-0.5 transition-all" />
               </div>
             ) : (
-              <div className="py-6 text-center space-y-2">
-                <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center">
-                  <Calendar className="w-5 h-5" />
+              <div className="py-6 text-center space-y-2 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 p-4">
+                <div className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center">
+                  <Calendar className="w-4 h-4" />
                 </div>
-                <p className="text-xs font-medium text-gray-600">No upcoming posts scheduled</p>
+                <p className="text-xs font-medium text-gray-700">No scheduled posts yet</p>
+                <p className="text-[11px] text-gray-400 max-w-xs mx-auto">
+                  Create your first post or ask Master Agent to generate upcoming content.
+                </p>
                 <button
                   onClick={() => setIsCreatePostOpen(true)}
-                  className="text-xs font-semibold text-brand-600 hover:underline"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-indigo-300 text-xs font-semibold text-gray-800 shadow-xs transition-colors"
                 >
-                  Create or ask agents to draft some →
+                  <Plus className="w-3.5 h-3.5 text-brand-500" />
+                  <span>Create a post</span>
                 </button>
               </div>
             )}
           </div>
+
+          {/* Recent Activity Feed */}
+          {activities && activities.length > 0 && (
+            <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-brand-600" />
+                  <h3 className="font-bold text-sm text-gray-900">Recent Activity & Audit Log</h3>
+                </div>
+                <span className="text-[10px] text-gray-400 font-medium">Persisted</span>
+              </div>
+
+              <div className="space-y-2">
+                {activities.slice(0, 4).map(act => (
+                  <div
+                    key={act.id}
+                    className="flex items-start gap-3 p-2.5 rounded-2xl bg-gray-50/70 border border-gray-100 text-xs"
+                  >
+                    <div className="w-7 h-7 rounded-xl bg-white border border-gray-200/80 flex items-center justify-center text-xs flex-shrink-0 shadow-xs">
+                      {act.icon || '⚡'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-gray-900 truncate">{act.title}</span>
+                        <span className="text-[10px] text-gray-400">{act.timestamp}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 truncate mt-0.5">{act.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Office Canvas */}
