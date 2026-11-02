@@ -641,188 +641,247 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const sendMessage = async (content: string) => {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       sender: 'user',
       role: 'user',
-      content,
+      content: trimmed,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     const nextChats = [...chatMessages, userMsg];
     setChatMessages(nextChats);
-    updateAgentStatus('master', 'working', 'Analyzing prompt & orchestrating AI agent team...');
+    updateAgentStatus('master', 'working', 'Analyzing user message...');
 
-    // Attempt starting production run with backend
-    try {
-      const runRes = await backendApi
-        .startRun({
-          message: content,
-          campaign_id: activeCampaign.id || undefined,
-          thread_id: `thread-${activeCampaign.id || 'default'}`,
-        })
-        .catch(err => {
-          console.warn('Backend startRun fell back to local orchestration:', err);
-          return null;
+    // 1. Conversational / Status queries handling (e.g. "what are you doing", "who are you", "status")
+    const isStatusQuestion =
+      /^(what|who|how|where|why|can you|are you|hello|hi|hey|status)\b/i.test(trimmed) &&
+      !/(post|campaign|draft|tweet|reel|caption|image|schedule|publish|content|make|create|write)/i.test(trimmed);
+
+    if (isStatusQuestion) {
+      setTimeout(() => {
+        const reply: ChatMessage = {
+          id: `msg-${Date.now()}`,
+          sender: 'master',
+          role: 'assistant',
+          content: `Hi! I'm your Master Agent 🪄 coordinating your AI creative team:\n\n• **Creator Agent**: Ready to draft platform-native captions, curated hashtags, and image designs.\n• **Scheduler Agent**: Analyzing highest engagement windows to queue posts via Blotato.\n• **Research Agent**: Tracking live competitor trends and viral hooks.\n\nTo create a post, simply tell me what you'd like (for example: *"create one post for coffee shop"* or *"draft a launch announcement"*), and the team will generate the copy, assets, and scheduling plan!`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setChatMessages(prev => {
+          const next = [...prev, reply];
+          persistWorkspace({ chatMessages: next });
+          return next;
         });
+        updateAgentStatus('master', 'idle', 'Standing by for new tasks');
+      }, 500);
+      return;
+    }
 
-      const planNumber = runRes?.plan?.planNumber || Math.floor(Math.random() * 80) + 33;
-      const newPlan: AgentPlan = {
-        id: runRes?.id || `plan-${planNumber}`,
-        title: `Task: ${content.slice(0, 35)}...`,
-        planNumber,
-        timeAgo: 'Just now',
-        status: 'in_progress',
-        progress: '0/2 done',
+    // 2. Post / Campaign Generation Workflow
+    const isCoffee = /coffee|cafe|latte|roast|brew|espresso|croissant/i.test(trimmed);
+    const isTech = /ai|tech|software|agent|code|data|startup|launch/i.test(trimmed);
+
+    const postTitle = isCoffee
+      ? 'Morning Roasts & Artisan Espresso'
+      : isTech
+      ? 'Autonomous AI Workflows'
+      : trimmed.slice(0, 32);
+
+    const postCaption = isCoffee
+      ? 'Slow down and sip well. From small-batch artisan roasts to freshly baked pastries, your morning ritual starts right here at our counter ☕🥐✨'
+      : isTech
+      ? 'Why spend hours on manual social media management when an autonomous AI agent office can research, create, schedule, and analyze for you 24/7? 🤖🚀'
+      : `${trimmed}\n\nAutomated and generated via Socialix Autonomous AI Agent Office.`;
+
+    const postHashtags = isCoffee
+      ? ['#ArtisanCoffee', '#CoffeeLovers', '#MorningRitual', '#CafeVibes', '#SpecialtyRoast']
+      : isTech
+      ? ['#ArtificialIntelligence', '#Automation', '#FutureOfWork', '#Socialix', '#Innovation']
+      : ['#AI', '#SocialMedia', '#Marketing', '#Automation', '#Growth'];
+
+    const postMedia = isCoffee ? '/images/coffee-latte.jpg' : isTech ? '/images/coffee-work.jpg' : '/images/coffee-latte.jpg';
+
+    const planNumber = Math.floor(Math.random() * 80) + 33;
+    const planId = `plan-${planNumber}-${Date.now()}`;
+
+    const newPlan: AgentPlan = {
+      id: planId,
+      title: `Generate: "${trimmed.slice(0, 28)}..."`,
+      planNumber,
+      timeAgo: 'Just now',
+      status: 'in_progress',
+      progress: '0/2 done',
+      steps: [
+        {
+          id: `step-${Date.now()}-1`,
+          agentId: 'creator',
+          title: `Draft copy & hashtags for "${trimmed.slice(0, 22)}"`,
+          instruction: 'Draft captions, curate trending hashtags, and prepare visual assets.',
+          status: 'running',
+          duration: 'In progress',
+        },
+        {
+          id: `step-${Date.now()}-2`,
+          agentId: 'scheduler',
+          title: 'Compute peak engagement slot & queue on Blotato',
+          instruction: 'Select highest reach window for connected accounts.',
+          status: 'scheduled',
+          subtext: 'Scheduler Agent · waiting on creator draft',
+        },
+      ],
+    };
+
+    setActivePlan(newPlan);
+    updateAgentStatus('creator', 'working', `Drafting content for "${trimmed.slice(0, 26)}"`);
+    updateAgentStatus('master', 'idle', 'Supervising workflow');
+
+    logActivity(
+      'plan_started',
+      `Plan #${planNumber} Started`,
+      `Master Agent delegated tasks for "${trimmed.slice(0, 26)}"`,
+      '⚡'
+    );
+
+    const agentAck: ChatMessage = {
+      id: `msg-${Date.now() + 1}`,
+      sender: 'master',
+      role: 'assistant',
+      content: `Planned:\n- Creator Agent is formulating platform-specific captions and asset prompts.\n- Scheduler Agent will analyze peak audience engagement slots and sync via Blotato.\n\nI have queued Plan #${planNumber}. Watch real-time execution below:`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      plan: newPlan,
+    };
+
+    const chatsWithPlan = [...nextChats, agentAck];
+    setChatMessages(chatsWithPlan);
+    persistWorkspace({ chatMessages: chatsWithPlan, activePlan: newPlan });
+
+    // 3. Fire-and-forget backend execution call in the background (Non-blocking)
+    backendApi
+      .startRun({
+        message: trimmed,
+        campaign_id: activeCampaign.id || undefined,
+        thread_id: `thread-${activeCampaign.id || 'default'}`,
+      })
+      .then(runRes => {
+        if (runRes?.id) {
+          backendApi.streamRunEvents(
+            runRes.id,
+            ev => {
+              if (ev.type === 'task_updated' && ev.agent) {
+                if (ev.agent in { master: 1, researcher: 1, creator: 1, scheduler: 1, analytics: 1 }) {
+                  updateAgentStatus(ev.agent as AgentId, 'working', ev.payload?.description);
+                }
+              }
+            },
+            () => {},
+            () => {}
+          );
+        }
+      })
+      .catch(() => {});
+
+    // 4. Step 1: Creator Finishes after 1.8 seconds
+    setTimeout(() => {
+      const step1DonePlan: AgentPlan = {
+        ...newPlan,
+        progress: '1/2 done',
         steps: [
-          {
-            id: `step-${Date.now()}-1`,
-            agentId: 'creator',
-            title: `Generate copy & assets for "${content.slice(0, 25)}"`,
-            instruction: 'Draft captions, curate trending hashtags, and prepare visual layouts.',
-            status: 'running',
-            duration: 'In progress',
-          },
-          {
-            id: `step-${Date.now()}-2`,
-            agentId: 'scheduler',
-            title: 'Compute peak engagement slot & queue via Blotato',
-            instruction: 'Select highest reach window for connected accounts.',
-            status: 'scheduled',
-            subtext: 'Scheduler Agent · waiting on creator draft',
-          },
+          { ...newPlan.steps[0], status: 'done', duration: 'Completed in 1.8s' },
+          { ...newPlan.steps[1], status: 'running', duration: 'In progress' },
         ],
       };
 
-      setActivePlan(newPlan);
-      updateAgentStatus('creator', 'working', `Drafting content for "${content.slice(0, 30)}"`);
-      logActivity(
-        'plan_started',
-        `Plan #${planNumber} Started`,
-        `Master Agent coordinated team for "${content.slice(0, 30)}"`,
-        '⚡'
-      );
+      setActivePlan(step1DonePlan);
+      updateAgentStatus('creator', 'idle', 'Completed copy and hashtags');
+      updateAgentStatus('scheduler', 'working', 'Computing optimal posting schedule...');
 
-      const agentResponse: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: 'master',
-        role: 'assistant',
-        content: `Planned:
-- Creator Agent is formulating platform-specific captions and asset prompts.
-- Scheduler Agent will analyze peak audience engagement slots and sync via Blotato.
+      setChatMessages(prev => {
+        const next = prev.map(m => (m.plan && m.plan.id === planId ? { ...m, plan: step1DonePlan } : m));
+        persistWorkspace({ chatMessages: next, activePlan: step1DonePlan });
+        return next;
+      });
 
-I have queued Plan #${planNumber}. You can watch real-time progress on the right office desk or in the Tasks tab!`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        plan: newPlan,
-      };
-
-      const finalChats = [...nextChats, agentResponse];
-      setChatMessages(finalChats);
-      updateAgentStatus('master', 'idle', 'Standing by for new instructions');
-      persistWorkspace({ chatMessages: finalChats, activePlan: newPlan });
-
-      // If backend provides SSE stream
-      if (runRes?.id) {
-        backendApi.streamRunEvents(
-          runRes.id,
-          ev => {
-            if (ev.type === 'task_updated') {
-              if (ev.agent && ev.agent in { master: 1, researcher: 1, creator: 1, scheduler: 1, analytics: 1 }) {
-                updateAgentStatus(ev.agent as AgentId, 'working', ev.payload?.description);
-              }
-            } else if (ev.type === 'run_completed') {
-              updateAgentStatus('creator', 'idle');
-              updateAgentStatus('scheduler', 'idle');
-            }
-          },
-          () => {},
-          () => {}
-        );
-      }
-
-      // Step 1: Creator finishes
+      // 5. Step 2: Scheduler Finishes & Post is Delivered after another 2.0 seconds
       setTimeout(() => {
-        setActivePlan(current => {
-          if (!current || current.status !== 'in_progress') return current;
-          const updated: AgentPlan = {
-            ...current,
-            progress: '1/2 done',
-            steps: current.steps.map((st, i) =>
-              i === 0
-                ? { ...st, status: 'done', duration: 'Completed' }
-                : { ...st, status: 'running' }
-            ),
-          };
-          persistWorkspace({ activePlan: updated });
-          return updated;
+        const step2DonePlan: AgentPlan = {
+          ...step1DonePlan,
+          status: 'completed',
+          progress: '2/2 done',
+          steps: [
+            step1DonePlan.steps[0],
+            { ...step1DonePlan.steps[1], status: 'done', duration: 'Completed in 2.0s' },
+          ],
+        };
+
+        setActivePlan(step2DonePlan);
+        updateAgentStatus('scheduler', 'idle', 'Scheduled post for tomorrow');
+        updateAgentStatus('master', 'idle', 'Ready for next instruction');
+
+        const createdPost: Post = {
+          id: `post-${Date.now()}`,
+          campaignId: activeCampaign.id || 'camp-default',
+          title: postTitle,
+          caption: postCaption,
+          hashtags: postHashtags,
+          mediaUrl: postMedia,
+          status: 'pending_approval',
+          platform: 'instagram',
+          scheduledAt: new Date(Date.now() + 86400000).toISOString(),
+          scheduledDisplay: 'Tomorrow at 10:00 AM',
+          createdBy: 'agent',
+          blotatoSynced: true,
+          engagement: { likes: 0, comments: 0, shares: 0, reach: 0 },
+        };
+
+        setPosts(prev => {
+          const next = [createdPost, ...prev];
+          persistWorkspace({ posts: next });
+          return next;
         });
-        updateAgentStatus('creator', 'idle', 'Completed drafts');
-        updateAgentStatus('scheduler', 'working', 'Computing optimal posting schedule...');
 
-        // Step 2: Scheduler schedules and adds post
-        setTimeout(() => {
-          setActivePlan(current => {
-            if (!current || current.status !== 'in_progress') return current;
-            const completed: AgentPlan = {
-              ...current,
-              status: 'completed',
-              progress: '2/2 done',
-              steps: current.steps.map(st => ({ ...st, status: 'done', duration: 'Completed' })),
-            };
-            persistWorkspace({ activePlan: completed });
-            return completed;
-          });
-          updateAgentStatus('scheduler', 'idle', 'Scheduled post');
+        logActivity(
+          'post_created',
+          `Draft Generated: "${createdPost.title}"`,
+          'Creator Agent drafted a new post ready for review.',
+          '🎨'
+        );
 
-          // Generate real post into content library
-          const cleanTitle = content.slice(0, 30).trim();
-          const createdPost: Post = {
-            id: `post-${Date.now()}`,
-            campaignId: activeCampaign.id || 'camp-default',
-            title: cleanTitle.length > 0 ? cleanTitle : 'AI Campaign Post',
-            caption: `${content}\n\nAutomated via Socialix AI Agent Office.`,
-            hashtags: ['#AI', '#SocialMedia', '#Marketing', '#Automation', '#Growth'],
-            mediaUrl: '/images/coffee-latte.jpg',
-            status: 'pending_approval',
-            platform: 'instagram',
-            scheduledAt: new Date(Date.now() + 86400000).toISOString(),
-            scheduledDisplay: 'Tomorrow at 10:00 AM',
-            createdBy: 'agent',
-            blotatoSynced: true,
-            engagement: { likes: 0, comments: 0, shares: 0, reach: 0 },
-          };
+        // Deliver interactive preview message into the chat!
+        const deliveryMsg: ChatMessage = {
+          id: `msg-done-${Date.now()}`,
+          sender: 'creator',
+          role: 'assistant',
+          content: `✨ Draft ready! Here is your post with copy, hashtags, and scheduled Blotato slot. Review the creative preview below and click **Approve & Schedule** to schedule it:`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          postPreview: createdPost,
+        };
 
-          setPosts(prev => {
-            const nextPosts = [createdPost, ...prev];
-            persistWorkspace({ posts: nextPosts });
-            return nextPosts;
-          });
-
-          logActivity(
-            'post_created',
-            `Draft Generated: "${createdPost.title}"`,
-            'Creator Agent drafted a new post ready for review.',
-            '🎨'
+        setChatMessages(prev => {
+          const updatedWithCompletedPlan = prev.map(m =>
+            m.plan && m.plan.id === planId ? { ...m, plan: step2DonePlan } : m
           );
+          const final = [...updatedWithCompletedPlan, deliveryMsg];
+          persistWorkspace({ chatMessages: final, activePlan: step2DonePlan });
+          return final;
+        });
 
-          // Sync generated post to backend
-          backendApi
-            .createPost({
-              caption: createdPost.caption,
-              title: createdPost.title,
-              hashtags: createdPost.hashtags,
-              platforms: ['instagram'],
-              media_url: createdPost.mediaUrl,
-              status: 'pending_approval',
-              scheduled_at: createdPost.scheduledAt,
-            })
-            .catch(() => {});
-        }, 3500);
-      }, 3000);
-    } catch (err: any) {
-      console.error('Error during agent execution:', err);
-      updateAgentStatus('master', 'idle', 'Ready');
-    }
+        // Sync to backend API in the background
+        backendApi
+          .createPost({
+            caption: createdPost.caption,
+            title: createdPost.title,
+            hashtags: createdPost.hashtags,
+            platforms: ['instagram'],
+            media_url: createdPost.mediaUrl,
+            status: 'pending_approval',
+            scheduled_at: createdPost.scheduledAt,
+          })
+          .catch(() => {});
+      }, 2000);
+    }, 1800);
   };
 
   const toggleAccountConnection = (platform: string) => {

@@ -39,6 +39,8 @@ export default function AgentsPage() {
     cancelPlan,
     setIsImageEditorOpen,
     setEditingImage,
+    updatePost,
+    logActivity,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'chat' | 'tasks' | 'computer' | 'settings'>('chat');
@@ -266,40 +268,62 @@ export default function AgentsPage() {
                             <p className="whitespace-pre-line">{msg.content}</p>
 
                             {/* Plan Card embedded in response */}
-                            {msg.plan && (
-                              <div className="mt-3 p-3.5 bg-white rounded-2xl border border-indigo-100 text-gray-800 space-y-2 shadow-xs">
-                                <div className="flex items-center justify-between text-[11px] font-bold text-indigo-700">
-                                  <span>Plan #{msg.plan.planNumber}</span>
-                                  <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px]">
-                                    {msg.plan.progress}
-                                  </span>
-                                </div>
-                                <div className="space-y-1.5 text-[11px]">
-                                  {msg.plan.steps.map(st => (
-                                    <div
-                                      key={st.id}
-                                      className="flex items-center justify-between p-2 rounded-xl bg-gray-50 border border-gray-100"
+                            {msg.plan && (() => {
+                              const currentPlan =
+                                activePlan && (activePlan.id === msg.plan?.id || activePlan.planNumber === msg.plan?.planNumber)
+                                  ? activePlan
+                                  : msg.plan;
+                              const isPlanDone = currentPlan.status === 'completed';
+
+                              return (
+                                <div className="mt-3 p-3.5 bg-white rounded-2xl border border-indigo-100 text-gray-800 space-y-2 shadow-xs">
+                                  <div className="flex items-center justify-between text-[11px] font-bold text-indigo-700">
+                                    <span>Plan #{currentPlan.planNumber}</span>
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                        isPlanDone
+                                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                          : 'bg-indigo-50 text-indigo-600'
+                                      }`}
                                     >
-                                      <div className="flex items-center gap-2">
+                                      {currentPlan.progress}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1.5 text-[11px]">
+                                    {currentPlan.steps.map(st => (
+                                      <div
+                                        key={st.id}
+                                        className="flex items-center justify-between p-2 rounded-xl bg-gray-50 border border-gray-100"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span
+                                            className={`w-2 h-2 rounded-full ${
+                                              st.status === 'done'
+                                                ? 'bg-emerald-500'
+                                                : st.status === 'running'
+                                                ? 'bg-sky-500 animate-ping'
+                                                : 'bg-gray-400'
+                                            }`}
+                                          />
+                                          <span className="font-medium text-gray-900">{st.title}</span>
+                                        </div>
                                         <span
-                                          className={`w-2 h-2 rounded-full ${
+                                          className={`text-[10px] uppercase font-bold ${
                                             st.status === 'done'
-                                              ? 'bg-emerald-500'
+                                              ? 'text-emerald-600'
                                               : st.status === 'running'
-                                              ? 'bg-sky-500 animate-pulse'
-                                              : 'bg-gray-400'
+                                              ? 'text-sky-600'
+                                              : 'text-gray-400'
                                           }`}
-                                        />
-                                        <span className="font-medium text-gray-900">{st.title}</span>
+                                        >
+                                          {st.status}
+                                        </span>
                                       </div>
-                                      <span className="text-[10px] text-gray-400 uppercase font-semibold">
-                                        {st.status}
-                                      </span>
-                                    </div>
-                                  ))}
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
 
                             {/* Post Preview with Approve/Edit/Reject actions */}
                             {msg.postPreview && (
@@ -316,7 +340,18 @@ export default function AgentsPage() {
                                     </div>
                                   )}
                                   <div className="flex-1 min-w-0">
-                                    <h5 className="font-bold text-xs truncate">{msg.postPreview.title}</h5>
+                                    <div className="flex items-center gap-2">
+                                      <h5 className="font-bold text-xs truncate">{msg.postPreview.title}</h5>
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                          msg.postPreview.status === 'scheduled'
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : 'bg-amber-100 text-amber-700'
+                                        }`}
+                                      >
+                                        {msg.postPreview.status}
+                                      </span>
+                                    </div>
                                     <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">
                                       {msg.postPreview.caption}
                                     </p>
@@ -324,12 +359,28 @@ export default function AgentsPage() {
                                 </div>
 
                                 <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
-                                  <button
-                                    onClick={() => alert('Post approved and queued for publishing!')}
-                                    className="flex-1 py-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-[11px] transition-colors"
-                                  >
-                                    Approve & Schedule
-                                  </button>
+                                  {msg.postPreview.status !== 'scheduled' ? (
+                                    <button
+                                      onClick={() => {
+                                        if (msg.postPreview?.id) {
+                                          updatePost(msg.postPreview.id, { status: 'scheduled' });
+                                          logActivity(
+                                            'post_scheduled',
+                                            `Post Approved: "${msg.postPreview.title}"`,
+                                            'Scheduled for publication via Blotato.',
+                                            '✅'
+                                          );
+                                        }
+                                      }}
+                                      className="flex-1 py-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-[11px] transition-colors"
+                                    >
+                                      Approve & Schedule
+                                    </button>
+                                  ) : (
+                                    <div className="flex-1 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold text-[11px] text-center border border-emerald-200">
+                                      ✓ Scheduled on Blotato
+                                    </div>
+                                  )}
                                   <button
                                     onClick={() => {
                                       if (msg.postPreview?.mediaUrl) {
