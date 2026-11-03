@@ -56,6 +56,11 @@ async function forwardRequest(req: NextRequest, { params }: { params: { path: st
       }
     });
 
+    // Ensure permissive CORS headers for the frontend client
+    resHeaders.set('Access-Control-Allow-Origin', '*');
+    resHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    resHeaders.set('Access-Control-Allow-Headers', '*');
+
     return new NextResponse(data, {
       status: upstreamRes.status,
       headers: resHeaders,
@@ -69,9 +74,27 @@ async function forwardRequest(req: NextRequest, { params }: { params: { path: st
           message: error.message || 'Failed to reach upstream AI Agent service.',
         },
       },
-      { status: 502 }
+      {
+        status: 502,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
+        },
+      }
     );
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+    },
+  });
 }
 
 export const GET = forwardRequest;

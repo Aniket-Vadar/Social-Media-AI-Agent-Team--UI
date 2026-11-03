@@ -162,8 +162,15 @@ class BackendApiClient {
   private baseUrl: string;
   private errorListeners: ApiErrorListener[] = [];
 
-  constructor(baseUrl: string = BACKEND_URL) {
-    this.baseUrl = baseUrl.replace(/\/+$/, '');
+  constructor(baseUrl?: string) {
+    if (baseUrl) {
+      this.baseUrl = baseUrl.replace(/\/+$/, '');
+    } else if (typeof window !== 'undefined') {
+      // In the browser, route through the Next.js same-origin API proxy to completely eliminate CORS & adblocker errors
+      this.baseUrl = '/api/backend';
+    } else {
+      this.baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://social-media-ai-agent-team-backend.onrender.com').replace(/\/+$/, '');
+    }
   }
 
   public onError(listener: ApiErrorListener): () => void {

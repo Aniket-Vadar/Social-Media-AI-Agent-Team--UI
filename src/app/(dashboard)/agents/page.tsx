@@ -582,19 +582,15 @@ export default function AgentsPage() {
                 </div>
               )}
 
-              {/* TAB 3: LIVE VIRTUAL BOX / E2B SANDBOX VIEWER */}
+              {/* TAB 3: AGENT SEARCHING COMPUTER */}
               {activeTab === 'computer' && (
                 <div className="space-y-3">
                   <LiveVirtualBox
-                    initialUrl="https://trends.google.com"
                     onSendToChat={(finding) => {
                       sendMessage(finding);
                       setActiveTab('chat');
                     }}
                   />
-                  <p className="text-[11px] text-gray-400">
-                    This agent&apos;s own live virtual box computer with browser viewport, E2B microVM streaming, and sandboxed CLI terminal.
-                  </p>
                 </div>
               )}
               {/* TAB 4: SETTINGS */}
