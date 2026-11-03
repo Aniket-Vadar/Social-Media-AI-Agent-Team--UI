@@ -183,6 +183,7 @@ export default function PostsPage() {
                     src={post.mediaUrl}
                     alt={post.title}
                     fill
+                    unoptimized
                     className="object-cover group-hover:scale-105 transition-transform duration-500"
                     onClick={() => setSelectedPostForDetail(post)}
                   />
@@ -273,6 +274,7 @@ export default function PostsPage() {
                             </button>
                             <button
                               onClick={() => {
+                                setSelectedPostForDetail(post);
                                 setEditingImage(post.mediaUrl);
                                 setIsImageEditorOpen(true);
                                 setActiveMenuPostId(null);

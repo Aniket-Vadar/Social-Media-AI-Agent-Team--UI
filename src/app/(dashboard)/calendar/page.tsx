@@ -213,6 +213,7 @@ export default function CalendarPage() {
                         src={cell.post.mediaUrl}
                         alt="Post thumb"
                         fill
+                        unoptimized
                         className="object-cover"
                       />
                     </div>

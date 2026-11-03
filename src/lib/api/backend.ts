@@ -517,6 +517,22 @@ class BackendApiClient {
     });
   }
 
+  async uploadImage(params: {
+    file_or_url: string;
+    file_name?: string;
+    folder?: string;
+    tags?: string[];
+    post_id?: string;
+  }): Promise<{ url: string; file_id: string; thumbnail_url?: string; variants?: Record<string, string> }> {
+    return this.request<{ url: string; file_id: string; thumbnail_url?: string; variants?: Record<string, string> }>(
+      '/api/v1/media/upload',
+      {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }
+    );
+  }
+
   async transformImage(params: {
     image_url: string;
     width?: number;

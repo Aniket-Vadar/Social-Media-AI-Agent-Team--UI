@@ -262,7 +262,7 @@ export const CreatePostModal: React.FC = () => {
               <div className="flex items-center gap-3">
                 {/* Thumbnail Preview */}
                 <div className="relative w-24 h-24 rounded-2xl overflow-hidden border border-gray-200 flex-shrink-0 group">
-                  <Image src={mediaUrl} alt="Cover image" fill className="object-cover" />
+                  <Image src={mediaUrl} alt="Cover image" fill unoptimized className="object-cover" />
                   <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-black/70 text-white text-[9px] font-bold">
                     ★ Cover
                   </span>
@@ -340,7 +340,7 @@ export const CreatePostModal: React.FC = () => {
 
               {/* Phone Post Image */}
               <div className="relative w-full aspect-square bg-gray-100">
-                <Image src={mediaUrl} alt="Preview" fill className="object-cover" />
+                <Image src={mediaUrl} alt="Preview" fill unoptimized className="object-cover" />
               </div>
 
               {/* Action Bar */}

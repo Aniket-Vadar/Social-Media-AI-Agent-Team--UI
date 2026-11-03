@@ -66,7 +66,7 @@ export const PostDetailSheet: React.FC = () => {
           <div className="p-5 space-y-4">
             {post.mediaUrl && (
               <div className="relative w-full aspect-square rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
-                <Image src={post.mediaUrl} alt={post.title} fill className="object-cover" />
+                <Image src={post.mediaUrl} alt={post.title} fill unoptimized className="object-cover" />
                 <div className="absolute top-3 left-3">
                   <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-bold capitalize">
                     {post.status}

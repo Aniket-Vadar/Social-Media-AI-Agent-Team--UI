@@ -1090,6 +1090,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return next;
         });
 
+        // Upload media to ImageKit CDN in the background
+        if (postMedia && postMedia.startsWith('http')) {
+          backendApi
+            .uploadImage({
+              file_or_url: postMedia,
+              file_name: `post_${Date.now()}.jpg`,
+              folder: '/socialix/uploads',
+              tags: ['socialix', 'agent-draft']
+            })
+            .then(res => {
+              if (res?.url) {
+                updatePost(createdPost.id, { mediaUrl: res.url });
+              }
+            })
+            .catch(err => console.warn('Background ImageKit upload:', err));
+        }
+
         logActivity(
           'post_created',
           `Draft Generated: "${createdPost.title}"`,
