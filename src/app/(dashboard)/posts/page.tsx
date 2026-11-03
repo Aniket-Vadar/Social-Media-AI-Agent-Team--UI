@@ -29,6 +29,7 @@ export default function PostsPage() {
     setIsCreatePostOpen,
     reschedulePost,
     unschedulePost,
+    updatePost,
     deletePost,
     setIsImageEditorOpen,
     setEditingImage,
@@ -44,7 +45,11 @@ export default function PostsPage() {
   // Filter posts
   const filteredPosts = posts.filter(post => {
     const matchesTab =
-      activeTab === 'all' ? true : post.status === activeTab || (activeTab === 'draft' && post.status === 'draft');
+      activeTab === 'all'
+        ? true
+        : activeTab === 'draft'
+        ? post.status === 'draft' || post.status === 'pending_approval'
+        : post.status === activeTab;
     const matchesPlatform = selectedPlatform === 'all' ? true : post.platform === selectedPlatform;
     const matchesSearch =
       post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -53,7 +58,7 @@ export default function PostsPage() {
   });
 
   const scheduledCount = posts.filter(p => p.status === 'scheduled').length;
-  const draftCount = posts.filter(p => p.status === 'draft').length;
+  const draftCount = posts.filter(p => p.status === 'draft' || p.status === 'pending_approval').length;
   const publishedCount = posts.filter(p => p.status === 'published').length;
 
   const handleEditReschedule = (post: Post) => {
@@ -237,6 +242,18 @@ export default function PostsPage() {
                             onClick={() => setActiveMenuPostId(null)}
                           />
                           <div className="absolute right-0 top-8 z-40 w-44 bg-white rounded-2xl border border-gray-100 shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-150">
+                            {post.status === 'pending_approval' && (
+                              <button
+                                onClick={() => {
+                                  updatePost(post.id, { status: 'scheduled' });
+                                  setActiveMenuPostId(null);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors text-left"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Approve & Schedule</span>
+                              </button>
+                            )}
                             <button
                               onClick={() => handleEditReschedule(post)}
                               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors text-left"

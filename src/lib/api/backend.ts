@@ -149,11 +149,38 @@ export interface RunEventPayload {
   ts?: string;
 }
 
+export interface ApiErrorEvent {
+  message: string;
+  status?: number;
+  endpoint?: string;
+  details?: any;
+}
+
+export type ApiErrorListener = (error: ApiErrorEvent) => void;
+
 class BackendApiClient {
   private baseUrl: string;
+  private errorListeners: ApiErrorListener[] = [];
 
   constructor(baseUrl: string = BACKEND_URL) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
+  }
+
+  public onError(listener: ApiErrorListener): () => void {
+    this.errorListeners.push(listener);
+    return () => {
+      this.errorListeners = this.errorListeners.filter(l => l !== listener);
+    };
+  }
+
+  public notifyError(error: ApiErrorEvent) {
+    this.errorListeners.forEach(fn => {
+      try {
+        fn(error);
+      } catch (e) {
+        console.error('Error listener threw an error', e);
+      }
+    });
   }
 
   private getHeaders(customHeaders: Record<string, string> = {}) {
@@ -201,8 +228,23 @@ class BackendApiClient {
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        const errorMsg = data?.error?.message || data?.detail || `API error ${response.status}`;
-        throw new Error(errorMsg);
+        const errorMsg =
+          (typeof data?.detail === 'string' ? data.detail : null) ||
+          data?.error?.message ||
+          (data?.detail && Array.isArray(data.detail) ? data.detail.map((d: any) => d.msg || d).join(', ') : null) ||
+          `API error ${response.status}: ${response.statusText || 'Request failed'}`;
+
+        const errorObj: ApiErrorEvent = {
+          message: errorMsg,
+          status: response.status,
+          endpoint,
+          details: data,
+        };
+        this.notifyError(errorObj);
+        const err = new Error(errorMsg) as any;
+        err.status = response.status;
+        err.alreadyNotified = true;
+        throw err;
       }
 
       // Backend wraps responses in { success: true, data: ... } or returns directly
@@ -213,8 +255,17 @@ class BackendApiClient {
       return data as T;
     } catch (err: any) {
       clearTimeout(timeout);
-      if (err.name === 'AbortError') {
-        throw new Error('Backend request timed out (service may be waking up)');
+      const isTimeout = err.name === 'AbortError';
+      const errorMsg = isTimeout
+        ? 'Backend request timed out (Render service may be waking up, please retry)'
+        : (err.message || 'Network error connecting to backend service');
+
+      if (!err.alreadyNotified) {
+        this.notifyError({
+          message: errorMsg,
+          status: isTimeout ? 504 : 0,
+          endpoint,
+        });
       }
       throw err;
     }

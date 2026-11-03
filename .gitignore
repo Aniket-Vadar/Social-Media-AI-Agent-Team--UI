@@ -34,4 +34,4 @@ Thumbs.db
 setup-dirs.js
 
 # Raw video capture frames (processed assets reside in /public)
-UI/
+/UI/

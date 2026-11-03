@@ -15,6 +15,7 @@ import {
   Edit,
   Trash2,
   CalendarClock,
+  Check,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
@@ -23,6 +24,7 @@ export const PostDetailSheet: React.FC = () => {
     selectedPostForDetail,
     setSelectedPostForDetail,
     deletePost,
+    updatePost,
     reschedulePost,
     setIsImageEditorOpen,
     setEditingImage,
@@ -140,6 +142,19 @@ export const PostDetailSheet: React.FC = () => {
 
         {/* Footer Actions */}
         <div className="p-5 border-t border-gray-100 space-y-2 bg-gray-50/50">
+          {post.status === 'pending_approval' && (
+            <button
+              onClick={() => {
+                updatePost(post.id, { status: 'scheduled' });
+                setSelectedPostForDetail(null);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors shadow-xs"
+            >
+              <Check className="w-4 h-4" />
+              <span>Approve & Schedule Post</span>
+            </button>
+          )}
+
           <button
             onClick={handleEditImage}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs transition-colors shadow-xs"

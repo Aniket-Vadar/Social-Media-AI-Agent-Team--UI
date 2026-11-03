@@ -23,6 +23,7 @@ import {
 } from '@/data/mockData';
 import { createClient } from '@/lib/supabase/client';
 import { backendApi, BACKEND_URL } from '@/lib/api/backend';
+import { AppNotification, ToastContainer } from '@/components/ui/ToastNotification';
 
 export interface AuthUser {
   id: string;
@@ -111,6 +112,11 @@ interface AppContextType {
   
   // Notifications
   notificationsCount: number;
+  notifications: AppNotification[];
+  showNotification: (notification: Omit<AppNotification, 'id'>) => string;
+  showError: (message: string, title?: string, status?: number) => string;
+  showSuccess: (message: string, title?: string) => string;
+  dismissNotification: (id: string) => void;
 
   // Production Backend & AI Agent Gateway
   backendStatus: 'online' | 'offline' | 'checking';
@@ -146,6 +152,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notificationsCount, setNotificationsCount] = useState(0);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  const showNotification = (notif: Omit<AppNotification, 'id'>): string => {
+    const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const newNotif: AppNotification = {
+      ...notif,
+      id,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    setNotifications(prev => [newNotif, ...prev.slice(0, 4)]);
+    return id;
+  };
+
+  const showError = (message: string, title: string = 'Backend Error', status?: number): string => {
+    return showNotification({
+      type: 'error',
+      title,
+      message,
+      status,
+      duration: 8000,
+    });
+  };
+
+  const showSuccess = (message: string, title: string = 'Success'): string => {
+    return showNotification({
+      type: 'success',
+      title,
+      message,
+      duration: 5000,
+    });
+  };
+
+  const dismissNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  // Subscribe to all backend API errors automatically to pop up on UI
+  useEffect(() => {
+    const unsubscribe = backendApi.onError(err => {
+      const title = err.status ? `Backend Error (${err.status})` : 'Backend Connection Notice';
+      showError(err.message, title, err.status);
+    });
+    return unsubscribe;
+  }, []);
 
   // Backend connection status
   const [backendStatus, setBackendStatus] = useState<'online' | 'offline' | 'checking'>('checking');
@@ -610,6 +660,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       activePlan: null,
     });
 
+    showSuccess(`Campaign "${newCamp.name}" created!`);
+
     // Sync with production FastAPI backend
     backendApi.createCampaign({
       name: newCamp.name,
@@ -674,6 +726,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     logActivity('campaign_created', `Campaign deleted: "${targetCamp?.name || campId}"`, 'Removed campaign and associated assets.', '🗑️');
+    showSuccess(`Campaign "${targetCamp?.name || campId}" deleted.`);
 
     backendApi.deleteCampaign(campId).catch(() => {});
   };
@@ -704,6 +757,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     logActivity('plan_started', 'Chat Cleared', 'Reset agent conversation and cleared active plan.', '🧹');
+    showSuccess('Chat cleared and active plans reset.');
   };
 
   const updateAgentStatus = (agentId: AgentId, status: AgentStatus, task?: string) => {
@@ -752,6 +806,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Backend post create deferred:', err);
     });
 
+    showSuccess(`Post "${newPost.title}" ${newPost.status === 'scheduled' ? 'scheduled' : 'saved as draft'}!`);
     return newPost;
   };
 
@@ -761,6 +816,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     persistWorkspace({ posts: nextPosts });
 
     if (updates.status === 'scheduled' || updates.status === 'published') {
+      showSuccess('Post approved and scheduled!');
       backendApi.approvePost(id, { caption: updates.caption, scheduled_at: updates.scheduledAt }).catch(() => {});
     }
   };
@@ -773,6 +829,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logActivity('post_created', `Post deleted: "${postToDelete.title}"`, 'Removed post from content library.', '🗑️');
     }
     persistWorkspace({ posts: nextPosts });
+    showSuccess('Post deleted.');
 
     backendApi.deletePost(id).catch(() => {});
   };
@@ -786,6 +843,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPosts(nextPosts);
     logActivity('post_scheduled', 'Post Rescheduled', `Updated schedule slot to ${newDisplay}`, '📅');
     persistWorkspace({ posts: nextPosts });
+    showSuccess(`Rescheduled for ${newDisplay}`);
 
     backendApi.reschedulePost(id, newDate).catch(() => {});
   };
@@ -1125,12 +1183,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sidebarCollapsed,
         setSidebarCollapsed,
         notificationsCount,
+        notifications,
+        showNotification,
+        showError,
+        showSuccess,
+        dismissNotification,
         backendStatus,
         backendUrl: BACKEND_URL,
         refreshBackendStatus,
       }}
     >
       {children}
+      <ToastContainer notifications={notifications} onDismiss={dismissNotification} />
     </AppContext.Provider>
   );
 };

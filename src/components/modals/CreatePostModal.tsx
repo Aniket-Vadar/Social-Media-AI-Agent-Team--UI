@@ -59,6 +59,21 @@ export const CreatePostModal: React.FC = () => {
   };
 
   const handleScheduleSubmit = () => {
+    let display = `${date} at ${time}`;
+    try {
+      const dt = new Date(`${date}T${time}`);
+      if (!isNaN(dt.getTime())) {
+        display = dt.toLocaleString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        });
+      }
+    } catch {}
+
     addPost({
       title,
       caption,
@@ -67,7 +82,7 @@ export const CreatePostModal: React.FC = () => {
       status: 'scheduled',
       platform,
       scheduledAt: `${date}T${time}:00Z`,
-      scheduledDisplay: `Fri, Oct 16, 9:00 PM EDT`,
+      scheduledDisplay: display,
     });
     setIsCreatePostOpen(false);
   };
