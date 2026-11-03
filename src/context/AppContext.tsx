@@ -918,28 +918,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // 2. Post / Campaign Generation Workflow
-    const isCoffee = /coffee|cafe|latte|roast|brew|espresso|croissant/i.test(trimmed);
-    const isTech = /ai|tech|software|agent|code|data|startup|launch/i.test(trimmed);
+    const isMobile = /samsung|s24|galaxy|iphone|apple|phone|mobile|smartphone|android|pixel|device|gadget/i.test(trimmed);
+    const isCoffee = /coffee|cafe|latte|roast|brew|espresso|croissant|bakery/i.test(trimmed);
+    const isTech = /ai|tech|software|agent|code|data|startup|launch|laptop|macbook|computer/i.test(trimmed);
 
-    const postTitle = isCoffee
+    const postTitle = isMobile
+      ? 'Next-Gen Innovation: Samsung S24'
+      : isCoffee
       ? 'Morning Roasts & Artisan Espresso'
       : isTech
       ? 'Autonomous AI Workflows'
       : trimmed.slice(0, 32);
 
-    const postCaption = isCoffee
+    const postCaption = isMobile
+      ? 'Experience the new era of mobile intelligence with the Samsung Galaxy S24! 📱✨ From Galaxy AI live translation to pro-grade nightography, elevate how you create and connect.\n\nAre you ready for the upgrade? Tell us your favorite feature below! 👇'
+      : isCoffee
       ? 'Slow down and sip well. From small-batch artisan roasts to freshly baked pastries, your morning ritual starts right here at our counter ☕🥐✨'
       : isTech
       ? 'Why spend hours on manual social media management when an autonomous AI agent office can research, create, schedule, and analyze for you 24/7? 🤖🚀'
       : `${trimmed}\n\nAutomated and generated via Socialix Autonomous AI Agent Office.`;
 
-    const postHashtags = isCoffee
+    const postHashtags = isMobile
+      ? ['#SamsungS24', '#GalaxyAI', '#SmartphoneInnovation', '#TechTrends', '#MobilePhotography']
+      : isCoffee
       ? ['#ArtisanCoffee', '#CoffeeLovers', '#MorningRitual', '#CafeVibes', '#SpecialtyRoast']
       : isTech
       ? ['#ArtificialIntelligence', '#Automation', '#FutureOfWork', '#Socialix', '#Innovation']
       : ['#AI', '#SocialMedia', '#Marketing', '#Automation', '#Growth'];
 
-    const postMedia = isCoffee ? '/images/coffee-latte.jpg' : isTech ? '/images/coffee-work.jpg' : '/images/coffee-latte.jpg';
+    const postMedia = isMobile
+      ? 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1080'
+      : isCoffee
+      ? 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=1080'
+      : isTech
+      ? 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1080'
+      : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080';
 
     const planNumber = Math.floor(Math.random() * 80) + 33;
     const planId = `plan-${planNumber}-${Date.now()}`;
