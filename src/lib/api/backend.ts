@@ -159,18 +159,22 @@ export interface ApiErrorEvent {
 export type ApiErrorListener = (error: ApiErrorEvent) => void;
 
 class BackendApiClient {
-  private baseUrl: string;
+  private customBaseUrl?: string;
   private errorListeners: ApiErrorListener[] = [];
 
   constructor(baseUrl?: string) {
     if (baseUrl) {
-      this.baseUrl = baseUrl.replace(/\/+$/, '');
-    } else if (typeof window !== 'undefined') {
-      // In the browser, route through the Next.js same-origin API proxy to completely eliminate CORS & adblocker errors
-      this.baseUrl = '/api/backend';
-    } else {
-      this.baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://social-media-ai-agent-team-backend.onrender.com').replace(/\/+$/, '');
+      this.customBaseUrl = baseUrl.replace(/\/+$/, '');
     }
+  }
+
+  public getBaseUrl(): string {
+    if (this.customBaseUrl) return this.customBaseUrl;
+    if (typeof window !== 'undefined') {
+      // In the browser, route through the Next.js same-origin API proxy to completely eliminate CORS & adblocker errors
+      return '/api/backend';
+    }
+    return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://social-media-ai-agent-team-backend.onrender.com').replace(/\/+$/, '');
   }
 
   public onError(listener: ApiErrorListener): () => void {
@@ -217,18 +221,34 @@ class BackendApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+    const activeBaseUrl = this.getBaseUrl();
+    let url = `${activeBaseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
     const headers = this.getHeaders((options.headers as Record<string, string>) || {});
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
 
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          ...options,
+          headers,
+          signal: controller.signal,
+        });
+      } catch (fetchErr) {
+        // Fallback to direct backend URL if proxy fails or in case of local network variance
+        if (activeBaseUrl === '/api/backend') {
+          const directUrl = `https://social-media-ai-agent-team-backend.onrender.com${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+          response = await fetch(directUrl, {
+            ...options,
+            headers,
+            signal: controller.signal,
+          });
+        } else {
+          throw fetchErr;
+        }
+      }
 
       clearTimeout(timeout);
 
@@ -283,7 +303,8 @@ class BackendApiClient {
   // ==========================================
   async getHealth(): Promise<{ status: string; service: string; version: string; environment?: string }> {
     try {
-      const res = await fetch(`${this.baseUrl}/healthz`, {
+      const activeBase = this.getBaseUrl();
+      const res = await fetch(`${activeBase}/health`, {
         headers: this.getHeaders(),
         cache: 'no-store',
       });
@@ -345,7 +366,7 @@ class BackendApiClient {
     onError?: (error: any) => void,
     onComplete?: () => void
   ): () => void {
-    const sseUrl = `${this.baseUrl}/api/v1/runs/${runId}/events`;
+    const sseUrl = `${this.getBaseUrl()}/api/v1/runs/${runId}/events`;
     
     // In browser, create native EventSource
     if (typeof window !== 'undefined' && 'EventSource' in window) {

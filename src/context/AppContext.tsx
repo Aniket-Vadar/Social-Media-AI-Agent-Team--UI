@@ -1102,6 +1102,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .then(res => {
               if (res?.url) {
                 updatePost(createdPost.id, { mediaUrl: res.url });
+                setChatMessages(prev =>
+                  prev.map(msg =>
+                    msg.postPreview?.id === createdPost.id
+                      ? { ...msg, postPreview: { ...msg.postPreview, mediaUrl: res.url } }
+                      : msg
+                  )
+                );
               }
             })
             .catch(err => console.warn('Background ImageKit upload:', err));
