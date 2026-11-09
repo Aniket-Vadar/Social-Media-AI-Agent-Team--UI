@@ -102,28 +102,39 @@ export interface ApiSocialAccount {
 }
 
 export interface ApiAnalyticsDashboard {
-  kpis: {
-    total_reach: number;
-    total_reach_change: string;
-    avg_engagement_rate: number;
-    engagement_rate_change: string;
-    active_posts: number;
-    agent_tasks_completed: number;
+  kpis?: {
+    posts_this_week?: number;
+    scheduled_posts?: number;
+    published_posts?: number;
+    completion_rate_percent?: number;
+    engagement_rate?: number;
+    impressions?: number;
+    reach?: number;
+    follower_growth?: number;
+    total_reach?: number;
+    total_reach_change?: string;
+    avg_engagement_rate?: number;
+    engagement_rate_change?: string;
+    active_posts?: number;
+    agent_tasks_completed?: number;
   };
-  timeseries: Array<{
+  timeseries?: Array<{
     date: string;
-    impressions: number;
-    engagement: number;
-    clicks: number;
+    impressions?: number;
+    engagement?: number;
+    clicks?: number;
   }>;
-  insights: Array<{
-    id: string;
-    agent: string;
-    title: string;
-    summary: string;
-    recommendation: string;
-    impact: 'high' | 'medium' | 'low';
-    created_at: string;
+  insights?: Array<{
+    id?: string;
+    agent?: string;
+    title?: string;
+    summary?: string;
+    recommendation?: string;
+    recommendations?: string[];
+    impact_score?: 'high' | 'medium' | 'low';
+    impact?: 'high' | 'medium' | 'low';
+    category?: string;
+    created_at?: string;
   }>;
 }
 
