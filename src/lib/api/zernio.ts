@@ -73,7 +73,7 @@ class ZernioClient {
 
   getApiKey(): string {
     if (!this.apiKey && typeof window !== 'undefined') {
-      this.apiKey = localStorage.getItem('socialix_zernio_key') || process.env.NEXT_PUBLIC_ZERNIO_API_KEY || '';
+      this.apiKey = localStorage.getItem('socialix_zernio_key') || '';
     }
     return this.apiKey || process.env.ZERNIO_API_KEY || '';
   }

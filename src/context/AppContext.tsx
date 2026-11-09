@@ -146,9 +146,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [accounts, setAccounts] = useState<ConnectedAccount[]>(initialConnectedAccounts);
   const [zernioApiKey, setZernioApiKeyState] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('socialix_zernio_key') || process.env.NEXT_PUBLIC_ZERNIO_API_KEY || '';
+      return localStorage.getItem('socialix_zernio_key') || '';
     }
-    return process.env.NEXT_PUBLIC_ZERNIO_API_KEY || '';
+    return '';
   });
 
   const setZernioApiKey = (key: string) => {

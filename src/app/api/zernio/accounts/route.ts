@@ -5,8 +5,7 @@ export async function GET(req: NextRequest) {
   try {
     const apiKey =
       req.headers.get('x-zernio-key') ||
-      process.env.ZERNIO_API_KEY ||
-      process.env.NEXT_PUBLIC_ZERNIO_API_KEY;
+      process.env.ZERNIO_API_KEY;
 
     if (apiKey) {
       try {

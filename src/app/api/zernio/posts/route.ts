@@ -6,8 +6,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const apiKey =
       req.headers.get('x-zernio-key') ||
-      process.env.ZERNIO_API_KEY ||
-      process.env.NEXT_PUBLIC_ZERNIO_API_KEY;
+      process.env.ZERNIO_API_KEY;
 
     if (apiKey) {
       try {
