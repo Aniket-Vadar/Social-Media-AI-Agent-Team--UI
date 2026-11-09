@@ -25,6 +25,7 @@ import {
   X,
   Upload,
   Eye,
+  Instagram,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { AgentId, Post } from '@/types';
@@ -49,6 +50,7 @@ export default function AgentsPage() {
     setSelectedPostForDetail,
     posts,
     updatePost,
+    publishPostNow,
     logActivity,
     showSuccess,
   } = useApp();
@@ -101,6 +103,13 @@ export default function AgentsPage() {
       if (pendingPost) {
         updatePost(pendingPost.id, { status: 'scheduled' });
         showSuccess(`Post "${pendingPost.title}" approved & scheduled on Zernio!`);
+        return;
+      }
+    }
+    if (/publish/i.test(prompt) && /instagram|now/i.test(prompt)) {
+      const pendingPost = posts.find(p => p.status === 'pending_approval') || posts[0];
+      if (pendingPost) {
+        publishPostNow(pendingPost.id);
         return;
       }
     }
@@ -458,7 +467,31 @@ export default function AgentsPage() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-                                  {msg.postPreview.status !== 'scheduled' ? (
+                                  {msg.postPreview.status !== 'published' ? (
+                                    <button
+                                      onClick={() => {
+                                        if (msg.postPreview?.id) {
+                                          publishPostNow(msg.postPreview.id);
+                                        }
+                                      }}
+                                      className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold text-[11px] transition-all shadow-xs flex items-center gap-1.5"
+                                    >
+                                      <Instagram className="w-3.5 h-3.5" />
+                                      <span>Publish to Instagram</span>
+                                    </button>
+                                  ) : (
+                                    <a
+                                      href={msg.postPreview.publishedUrl || 'https://instagram.com/itsidealcoder'}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold text-[11px] transition-all shadow-xs flex items-center gap-1.5"
+                                    >
+                                      <Instagram className="w-3.5 h-3.5" />
+                                      <span>View on Instagram ↗</span>
+                                    </a>
+                                  )}
+
+                                  {msg.postPreview.status !== 'scheduled' && msg.postPreview.status !== 'published' ? (
                                     <button
                                       onClick={() => {
                                         if (msg.postPreview?.id) {
@@ -471,15 +504,15 @@ export default function AgentsPage() {
                                           );
                                         }
                                       }}
-                                      className="flex-1 min-w-[120px] py-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-[11px] transition-colors shadow-xs"
+                                      className="px-3 py-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-[11px] transition-colors shadow-xs"
                                     >
-                                      Approve & Schedule
+                                      Schedule
                                     </button>
-                                  ) : (
-                                    <div className="flex-1 min-w-[120px] py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold text-[11px] text-center border border-emerald-200">
-                                      ✓ Scheduled on Zernio
+                                  ) : msg.postPreview.status === 'scheduled' ? (
+                                    <div className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold text-[11px] text-center border border-emerald-200">
+                                      ✓ Scheduled
                                     </div>
-                                  )}
+                                  ) : null}
 
                                   {/* View Post Button */}
                                   <button

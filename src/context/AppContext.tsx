@@ -75,6 +75,7 @@ interface AppContextType {
   deletePost: (id: string) => void;
   reschedulePost: (id: string, newDate: string, newDisplay: string) => void;
   unschedulePost: (id: string) => void;
+  publishPostNow: (id: string) => Promise<void>;
   
   // Chat & Plans
   chatMessages: ChatMessage[];
@@ -275,6 +276,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     refreshBackendStatus();
     syncBackendAgents();
+    zernioApi
+      .getAccounts()
+      .then(liveAccs => {
+        if (Array.isArray(liveAccs) && liveAccs.length > 0) {
+          setAccounts(prev =>
+            prev.map(p => {
+              const matched = liveAccs.find(a => a.platform === p.platform);
+              if (matched) {
+                return {
+                  ...p,
+                  accountHandle: matched.accountHandle,
+                  displayName: matched.displayName,
+                  connected: matched.status === 'active',
+                  avatarUrl: matched.avatarUrl || p.avatarUrl,
+                };
+              }
+              return p;
+            })
+          );
+        }
+      })
+      .catch(() => {});
     const interval = setInterval(() => {
       syncBackendAgents();
     }, 45000);
@@ -831,19 +854,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     persistWorkspace({ posts: nextPosts });
 
     // Sync with Zernio multi-platform social API
+    const isPublishNow = newPost.status === 'published';
     zernioApi
       .createPost({
         content: newPost.caption,
         mediaItems: newPost.mediaUrl ? [{ type: 'image', url: newPost.mediaUrl }] : undefined,
         platforms: [{ platform: newPost.platform, accountId: `acc_${newPost.platform}` }],
         scheduledFor: newPost.scheduledAt,
-        publishNow: newPost.status === 'published',
+        publishNow: isPublishNow,
       })
       .then(res => {
         if (res?.id) {
+          const publishedLink = (res as any).publishedUrl || res.platforms?.[0]?.publishedUrl || 'https://instagram.com/itsidealcoder';
           setPosts(current =>
-            current.map(p => (p.id === newPost.id ? { ...p, zernioPostId: res.id, zernioSynced: true } : p))
+            current.map(p =>
+              p.id === newPost.id
+                ? {
+                    ...p,
+                    zernioPostId: res.id,
+                    zernioSynced: true,
+                    publishedUrl: publishedLink || p.publishedUrl,
+                    status: isPublishNow ? 'published' : p.status,
+                  }
+                : p
+            )
           );
+          if (isPublishNow) {
+            showSuccess(`🚀 Live on Instagram! Post published to @itsidealcoder.`);
+          }
         }
       })
       .catch(err => console.warn('Zernio post creation deferred:', err));
@@ -941,6 +979,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     setPosts(nextPosts);
     persistWorkspace({ posts: nextPosts });
+  };
+
+  const publishPostNow = async (id: string): Promise<void> => {
+    const targetPost = posts.find(p => p.id === id);
+    if (!targetPost) return;
+
+    showSuccess(`Publishing "${targetPost.title}" directly to Instagram...`);
+
+    // Optimistically update status
+    const updatedPost: Post = {
+      ...targetPost,
+      status: 'published',
+      publishedAt: new Date().toISOString(),
+      scheduledDisplay: 'Published to Instagram',
+    };
+
+    const nextPosts = posts.map(p => (p.id === id ? updatedPost : p));
+    setPosts(nextPosts);
+    persistWorkspace({ posts: nextPosts });
+    logActivity('post_created', `Published to Instagram: "${targetPost.title}"`, 'Post published live via Zernio.', '🚀');
+
+    try {
+      const res = await zernioApi.createPost({
+        content: targetPost.caption,
+        mediaItems: targetPost.mediaUrl ? [{ type: 'image', url: targetPost.mediaUrl }] : undefined,
+        platforms: [{ platform: targetPost.platform || 'instagram', accountId: `acc_${targetPost.platform || 'instagram'}` }],
+        publishNow: true,
+      });
+
+      if (res?.id) {
+        const publishedLink = (res as any).publishedUrl || res.platforms?.[0]?.publishedUrl || 'https://instagram.com/itsidealcoder';
+        setPosts(current =>
+          current.map(p =>
+            p.id === id
+              ? {
+                  ...p,
+                  status: 'published',
+                  zernioSynced: true,
+                  zernioPostId: res.id,
+                  publishedUrl: publishedLink,
+                  publishedAt: new Date().toISOString(),
+                }
+              : p
+          )
+        );
+        showSuccess(`🚀 Live on Instagram! Check feed: @itsidealcoder`);
+      }
+    } catch (err: any) {
+      console.warn('Publish to Instagram error:', err);
+      showError(err?.message || 'Failed to publish to Instagram');
+    }
   };
 
   const cancelPlan = () => {
@@ -1484,13 +1573,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: `msg-done-${Date.now()}`,
           sender: 'creator',
           role: 'assistant',
-          content: `✨ Draft ready! Here is your post with copy, hashtags, and visual asset. Review the creative below and click **Approve & Schedule** or fine-tune in **AI Image Studio**:`,
+          content: `✨ Draft ready! Here is your post with copy, hashtags, and visual asset. Click **Publish Now to Instagram** to publish live immediately, or **Approve & Schedule** to queue for peak hours:`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           postPreview: createdPost,
           quickReplies: [
+            '🚀 Publish Now to Instagram',
+            '✓ Approve & Schedule',
             '👁️ View Post',
             '✨ Open in AI Image Studio',
-            '✓ Approve & Schedule',
             '✍️ Generate Another Variant',
           ],
         };
@@ -1563,6 +1653,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deletePost,
         reschedulePost,
         unschedulePost,
+        publishPostNow,
         chatMessages,
         setChatMessages,
         activePlan,

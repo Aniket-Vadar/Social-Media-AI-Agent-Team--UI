@@ -322,11 +322,11 @@ export const initialConnectedAccounts: ConnectedAccount[] = [
   {
     id: 'acc-1',
     platform: 'instagram',
-    accountHandle: '@tubegurujipro',
-    displayName: 'kravixstudio',
+    accountHandle: '@itsidealcoder',
+    displayName: 'itsidealcoder',
     connected: true,
     avatarUrl: '/avatars/master.png',
-    checkedAgo: 'Checked 1 day ago',
+    checkedAgo: 'Active on Zernio',
   },
   {
     id: 'acc-2',

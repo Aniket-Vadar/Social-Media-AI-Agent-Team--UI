@@ -132,6 +132,20 @@ export const CreatePostModal: React.FC = () => {
     setIsCreatePostOpen(false);
   };
 
+  const handlePublishNow = () => {
+    addPost({
+      title,
+      caption,
+      hashtags,
+      mediaUrl,
+      status: 'published',
+      platform,
+      scheduledAt: new Date().toISOString(),
+      scheduledDisplay: 'Published to Instagram',
+    });
+    setIsCreatePostOpen(false);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl border border-gray-100 shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
@@ -446,9 +460,16 @@ export const CreatePostModal: React.FC = () => {
             </button>
             <button
               onClick={handleScheduleSubmit}
-              className="px-5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-md shadow-indigo-200 transition-colors"
+              className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors"
             >
               Schedule post
+            </button>
+            <button
+              onClick={handlePublishNow}
+              className="px-5 py-2 rounded-xl bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold text-xs shadow-md shadow-rose-200 transition-all flex items-center gap-1.5"
+            >
+              <Instagram className="w-3.5 h-3.5" />
+              <span>Publish Now to Instagram</span>
             </button>
           </div>
         </div>

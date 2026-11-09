@@ -31,6 +31,7 @@ export default function PostsPage() {
     unschedulePost,
     updatePost,
     deletePost,
+    publishPostNow,
     setIsImageEditorOpen,
     setEditingImage,
     setSelectedPostForDetail,
@@ -254,6 +255,28 @@ export default function PostsPage() {
                             onClick={() => setActiveMenuPostId(null)}
                           />
                           <div className="absolute right-0 top-8 z-40 w-44 bg-white rounded-2xl border border-gray-100 shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-150">
+                            {post.status !== 'published' ? (
+                              <button
+                                onClick={() => {
+                                  publishPostNow(post.id);
+                                  setActiveMenuPostId(null);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors text-left"
+                              >
+                                <Instagram className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Publish to Instagram</span>
+                              </button>
+                            ) : (
+                              <a
+                                href={post.publishedUrl || 'https://instagram.com/itsidealcoder'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-purple-600 hover:bg-purple-50 transition-colors text-left"
+                              >
+                                <Instagram className="w-3.5 h-3.5 text-purple-600" />
+                                <span>View on Instagram ↗</span>
+                              </a>
+                            )}
                             {post.status === 'pending_approval' && (
                               <button
                                 onClick={() => {
@@ -318,8 +341,19 @@ export default function PostsPage() {
 
                   {/* Zernio Publishing Status */}
                   <div className="flex items-center gap-1.5 text-[11px] text-gray-500 pt-1">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    <span>Scheduled in Zernio</span>
+                    <span className={`w-2 h-2 rounded-full ${post.status === 'published' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    <span>{post.status === 'published' ? 'Published on Instagram' : 'Scheduled in Zernio'}</span>
+                    {post.publishedUrl && (
+                      <a
+                        href={post.publishedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brand-600 hover:underline ml-auto flex items-center gap-0.5 text-[10px] font-semibold"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <span>View on IG ↗</span>
+                      </a>
+                    )}
                   </div>
                 </div>
 

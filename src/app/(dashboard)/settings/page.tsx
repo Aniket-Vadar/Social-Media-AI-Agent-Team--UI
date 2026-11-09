@@ -459,11 +459,15 @@ export default function SettingsPage() {
 
                   <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-indigo-500 to-brand-500 text-white flex items-center justify-center text-[10px] font-bold">
-                      K
+                      {accounts.find(a => a.platform === 'instagram')?.displayName?.[0]?.toUpperCase() || 'I'}
                     </div>
                     <div className="truncate">
-                      <div className="font-bold text-[11px] text-gray-800 leading-none">kravixstudio</div>
-                      <span className="text-[10px] text-gray-400">@kravixstudio</span>
+                      <div className="font-bold text-[11px] text-gray-800 leading-none">
+                        {accounts.find(a => a.platform === 'instagram')?.displayName || 'itsidealcoder'}
+                      </div>
+                      <span className="text-[10px] text-gray-400">
+                        {accounts.find(a => a.platform === 'instagram')?.accountHandle || '@itsidealcoder'}
+                      </span>
                     </div>
                   </div>
                 </div>

@@ -56,6 +56,7 @@ export interface Post {
   scheduledAt: string;
   scheduledDisplay: string;
   publishedAt?: string;
+  publishedUrl?: string;
   createdBy: 'agent' | 'user';
   blotatoSynced?: boolean;
   zernioSynced: boolean;

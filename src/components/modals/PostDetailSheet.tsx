@@ -26,6 +26,7 @@ export const PostDetailSheet: React.FC = () => {
     deletePost,
     updatePost,
     reschedulePost,
+    publishPostNow,
     setReschedulingPost,
     setIsImageEditorOpen,
     setEditingImage,
@@ -158,6 +159,29 @@ export const PostDetailSheet: React.FC = () => {
 
         {/* Footer Actions */}
         <div className="p-5 border-t border-gray-100 space-y-2 bg-gray-50/50">
+          {post.status !== 'published' ? (
+            <button
+              onClick={() => {
+                publishPostNow(post.id);
+                setSelectedPostForDetail(null);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold text-xs transition-all shadow-md shadow-rose-200"
+            >
+              <Instagram className="w-4 h-4" />
+              <span>Publish Now to Instagram</span>
+            </button>
+          ) : (
+            <a
+              href={post.publishedUrl || 'https://instagram.com/itsidealcoder'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold text-xs transition-all shadow-md text-center"
+            >
+              <Instagram className="w-4 h-4" />
+              <span>View Live on Instagram ↗</span>
+            </a>
+          )}
+
           {post.status === 'pending_approval' && (
             <button
               onClick={() => {
