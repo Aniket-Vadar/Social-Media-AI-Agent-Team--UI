@@ -78,6 +78,7 @@ interface AppContextType {
   
   // Chat & Plans
   chatMessages: ChatMessage[];
+  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   activePlan: AgentPlan | null;
   sendMessage: (content: string, attachedImage?: string) => void;
   cancelPlan: () => void;
@@ -1011,6 +1012,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Helper: Clean and extract genuine subject from user command prompt
     const extractCleanSubject = (raw: string): string => {
+      // If the input is a research note or contains "Search Query", extract the clean search term
+      if (/Live Market Research|Search Query/i.test(raw)) {
+        const queryMatch = raw.match(/Search Query[:"\s]+([^"\n\r*]+)/i);
+        if (queryMatch && queryMatch[1]) {
+          return extractCleanSubject(queryMatch[1]);
+        }
+        return activeCampaign?.name || 'Trending Launch';
+      }
+
       let cleaned = raw
         .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, ' ')
         .replace(/[^\w\s-]/g, ' ')
@@ -1053,6 +1063,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ''
         );
         cleaned = cleaned.replace(/\s+(post|realted|related|content|creative|ad)$/i, '');
+      }
+
+      // Strict safety cap on subject length to prevent database column overflow
+      if (cleaned.length > 50) {
+        cleaned = cleaned.slice(0, 50).replace(/\s+\S*$/, '').trim();
       }
 
       return cleaned.trim();
@@ -1257,6 +1272,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       postCaption = `Introducing the next standard of ${dynamicSubject} ✨\n\nCrafted for those who appreciate authenticity, refined details, and flawless execution:\n\n💎 Premium materials and thoughtful design in every single touchpoint\n⚡ Engineered to seamlessly elevate your everyday lifestyle\n🌟 Built with passion to inspire lasting confidence and connection\n\nReady to experience the difference? 👇\n\nDrop a '🔥' in the comments or tap the link in bio to explore more!`;
       postHashtags = [`#${dynamicSubject.replace(/[^a-zA-Z0-9]/g, '')}`, '#QualityFirst', '#DesignExcellence', '#CommunityFirst', '#Trendsetter', '#BrandBuilding'];
       postMedia = 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1080&auto=format&fit=crop&q=85';
+    }
+
+    // Strict database safety: clamp title to max 120 characters to guarantee it fits PostgreSQL VARCHAR(255)
+    if (postTitle.length > 120) {
+      postTitle = `${postTitle.slice(0, 117).trim()}...`;
     }
 
     const planNumber = Math.floor(Math.random() * 80) + 33;
@@ -1508,6 +1528,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reschedulePost,
         unschedulePost,
         chatMessages,
+        setChatMessages,
         activePlan,
         sendMessage,
         cancelPlan,

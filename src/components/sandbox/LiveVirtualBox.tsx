@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { ChatMessage } from '@/types';
 
 interface LiveVirtualBoxProps {
   initialQuery?: string;
@@ -31,7 +32,7 @@ export const LiveVirtualBox: React.FC<LiveVirtualBoxProps> = ({
   className = '',
   onSendToChat,
 }) => {
-  const { activeCampaign, sendMessage, logActivity, showSuccess } = useApp();
+  const { activeCampaign, sendMessage, setChatMessages, logActivity, showSuccess } = useApp();
 
   // Dynamic default query based on campaign name
   const campaignTopic = activeCampaign?.name ? activeCampaign.name.toLowerCase() : 'social media';
@@ -71,10 +72,23 @@ export const LiveVirtualBox: React.FC<LiveVirtualBoxProps> = ({
   3. *Aesthetic Desk / Lifestyle Setup*: Tagging trending creator soundscapes for 2.4x higher organic explore reach.
 - **Recommended Hashtags**: #${campaignTopic.replace(/\s+/g, '')} #Trends2026 #LaunchDay #CreatorVibes #ViralReels`;
 
+    const researchMsg: ChatMessage = {
+      id: `msg-research-${Date.now()}`,
+      sender: 'researcher',
+      role: 'assistant',
+      content: insight,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      quickReplies: [
+        `Create post for ${campaignTopic}`,
+        '✨ Open in AI Image Studio',
+        '✍️ Generate Another Variant',
+      ],
+    };
+
     if (onSendToChat) {
       onSendToChat(insight);
     } else {
-      sendMessage(insight);
+      setChatMessages((prev: ChatMessage[]) => [...prev, researchMsg]);
     }
 
     logActivity('plan_started', 'Agent Research Captured', `Extracted intelligence for "${searchQuery}"`, '🔍');

@@ -455,9 +455,17 @@ class BackendApiClient {
     scheduled_at?: string;
     status?: string;
   }): Promise<ApiPost> {
+    const sanitizedData = {
+      ...data,
+      title: data.title
+        ? data.title.length > 150
+          ? `${data.title.slice(0, 147).trim()}...`
+          : data.title.trim()
+        : undefined,
+    };
     return this.request<ApiPost>('/api/v1/posts', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(sanitizedData),
     });
   }
 
