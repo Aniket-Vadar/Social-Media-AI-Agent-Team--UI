@@ -897,11 +897,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveUpdatedChats(nextChats);
     updateAgentStatus('master', 'working', attachedImage ? 'Analyzing uploaded reference image...' : 'Analyzing user request...');
 
-    // 1. Conversational / Status queries handling
+    // 1. Direct Quick Actions Handling: Approve & Schedule
+    if (/^(✓\s*)?approve(\s+&?\s*schedule|\s+post)?$/i.test(trimmed)) {
+      setTimeout(() => {
+        const pendingPost = posts.find(p => p.status === 'pending_approval') || posts[0];
+        if (pendingPost) {
+          updatePost(pendingPost.id, { status: 'scheduled', blotatoSynced: true });
+          const confirmMsg: ChatMessage = {
+            id: `msg-${Date.now()}`,
+            sender: 'master',
+            role: 'assistant',
+            content: `✅ **Post Approved!**\n\n"${pendingPost.title}" has been successfully approved and scheduled on **Blotato** for publication.\n\nYou can view it live in your **Posts** grid or manage its slot in the **Calendar** view.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          const updated = [...nextChats, confirmMsg];
+          saveUpdatedChats(updated);
+          updateAgentStatus('master', 'idle', 'Post approved and synced with Blotato');
+          showSuccess('Post approved and scheduled!');
+        } else {
+          const infoMsg: ChatMessage = {
+            id: `msg-${Date.now()}`,
+            sender: 'master',
+            role: 'assistant',
+            content: `All posts are already approved and scheduled! To create a new post, let me know what product or topic you would like to showcase.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          const updated = [...nextChats, infoMsg];
+          saveUpdatedChats(updated);
+        }
+      }, 400);
+      return;
+    }
+
+    // 2. Conversational / Status queries handling
     const isStatusQuestion =
       !attachedImage &&
       /^(what|who|how|where|why|can you|are you|hello|hi|hey|status)\b/i.test(trimmed) &&
-      !/(post|campaign|draft|tweet|reel|caption|image|schedule|publish|content|make|create|write|enhance)/i.test(trimmed);
+      !/(post|campaign|draft|tweet|reel|caption|image|schedule|publish|content|make|create|write|enhance|laptop|hp|variant)/i.test(trimmed);
 
     if (isStatusQuestion) {
       setTimeout(() => {
@@ -909,7 +941,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: `msg-${Date.now()}`,
           sender: 'master',
           role: 'assistant',
-          content: `Hi! I'm your Master Agent 🪄 coordinating your AI creative team:\n\n• **Creator Agent**: Ready to draft platform-native captions, curated hashtags, and image designs.\n• **Scheduler Agent**: Analyzing highest engagement windows to queue posts via Blotato.\n• **Research Agent**: Tracking live competitor trends and viral hooks.\n\nTo create a post, tell me what you need (e.g. *"create one post for coffee shop"*, *"announce holiday sale"*) or **upload a reference image** below and the team will craft custom copy and visual assets!`,
+          content: `Hi! I'm your Master Agent 🪄 coordinating your AI creative team:\n\n• **Creator Agent**: Ready to draft platform-native captions, curated hashtags, and image designs.\n• **Scheduler Agent**: Analyzing highest engagement windows to queue posts via Blotato.\n• **Research Agent**: Tracking live competitor trends and viral hooks.\n\nTo create a post, tell me what you need (e.g. *"create social media post for HP laptop"*, *"create educational post"*) or **upload a reference image** below and the team will craft custom copy and visual assets!`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         const updated = [...nextChats, reply];
@@ -919,86 +951,186 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // 2. Intelligent Multi-Domain & Reference Image Content Generator
-    const p = trimmed.toLowerCase();
-    let postTitle = 'Curated Social Creative ✨';
-    let postCaption = `${trimmed}\n\nAutomated and generated via Socialix Autonomous AI Agent Office.`;
-    let postHashtags = ['#Socialix', '#ContentCreator', '#ViralPost', '#Marketing', '#SocialMediaGrowth'];
-    let postMedia = attachedImage || '/images/coffee-latte.jpg';
+    // Helper: Clean and extract genuine subject from user command prompt
+    const extractCleanSubject = (raw: string): string => {
+      let cleaned = raw
+        .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, ' ')
+        .replace(/[^\w\s-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
+      cleaned = cleaned.replace(/^(can you |could you |please |hey |hi |hello |agent |team |socialix )+/i, '');
+      cleaned = cleaned.replace(
+        /^(create|generate|write|draft|make|post|publish|design|build|produce)\s+(a |an |one |new |viral |high converting |engaging |social media |instagram |linkedin |facebook |x |twitter )*(post|content|caption|creative|reel|update|ad|copy|campaign|graphic)*\s*(for|about|on|regarding|around|of|centered on)*\s*/i,
+        ''
+      );
+      cleaned = cleaned.replace(/\s+(with|using|in|for)\s+(good|viral|creative|high converting|best|trending)*\s*(hashtags|caption|image|media|photo|visuals?).*$/i, '');
+      cleaned = cleaned.replace(/\s+(post|realted|related|content|creative|ad)$/i, '');
+      return cleaned.trim();
+    };
+
+    const formatSubjectTitle = (subject: string): string => {
+      if (!subject) return '';
+      const acronyms = new Set(['HP', 'AI', 'PC', '4K', 'OLED', 'S24', 'ASUS', 'ACER', 'DELL', 'VIP', 'GPU', 'CPU', 'RAM', 'SSD', 'USA', 'UK']);
+      return subject
+        .split(/\s+/)
+        .map(w => {
+          const up = w.toUpperCase();
+          if (acronyms.has(up)) return up;
+          return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+        })
+        .join(' ');
+    };
+
+    // 3. Variant Request Handling (e.g. "✍️ Generate Another Variant")
+    const isVariantRequest = /variant|another(\s+option|\s+version|\s+one)?|different(\s+option|\s+angle)/i.test(trimmed);
+    let targetSubject = extractCleanSubject(trimmed);
+
+    if (isVariantRequest || !targetSubject) {
+      // Look back for subject in previous posts or user chat history
+      const prevPost = posts[0] || chatMessages.slice().reverse().find(m => m.postPreview)?.postPreview;
+      const prevUserMsg = chatMessages
+        .slice()
+        .reverse()
+        .find(m => m.role === 'user' && !/variant|approve|another|cancel/i.test(m.content));
+
+      if (prevUserMsg) {
+        targetSubject = extractCleanSubject(prevUserMsg.content);
+      }
+      if (!targetSubject && prevPost) {
+        targetSubject = prevPost.title.replace(/[:\-–—].*$/, '').replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '').trim();
+      }
+      if (!targetSubject && activeCampaign?.name) {
+        targetSubject = activeCampaign.name;
+      }
+    }
+
+    const cleanSubject = formatSubjectTitle(targetSubject);
+    const p = (targetSubject ? `${targetSubject} ${trimmed}` : trimmed).toLowerCase();
+
+    let postTitle = 'Curated Social Creative ✨';
+    let postCaption = '';
+    let postHashtags: string[] = ['#Socialix', '#ContentCreator', '#ViralPost', '#Marketing', '#SocialMediaGrowth'];
+    let postMedia = attachedImage || 'https://images.unsplash.com/photo-1542744094-3a31f272c490?w=1080&auto=format&fit=crop&q=85';
+
+    // 4. Multi-Domain Contextual Content Generation
     if (attachedImage) {
-      // User provided reference image
+      // Visual reference provided by user
       const isPromo = /discount|sale|off|promo|deal|coupon|limited|offer/i.test(p);
       const isLaunch = /launch|announc|new|introduc|drop/i.test(p);
       postTitle = isPromo
         ? 'Special Exclusive Offer 🔥'
         : isLaunch
         ? 'New Release Announcement 🚀'
-        : trimmed.length > 5
-        ? trimmed.slice(0, 36)
+        : cleanSubject
+        ? `${cleanSubject}: Curated Showcase ✨`
         : 'Curated Visual Showcase ✨';
 
-      postCaption = `Crafted around your visual reference ✨\n\n${trimmed ? trimmed + '\n\n' : ''}Designed with intentional aesthetic harmony, high contrast, and authentic social storytelling to stop the scroll and drive engagement.\n\nReady to post? Tap 'Approve & Schedule' or fine-tune in AI Image Studio! 👇`;
+      postCaption = `Crafted around your visual reference ✨\n\n${cleanSubject ? `Featuring **${cleanSubject}**—designed with high-contrast storytelling, intentional aesthetics, and engaging copy to stop the scroll and drive organic reach.\n\n` : ''}⚡ High-converting visual hierarchy\n🎨 Color-calibrated for maximum feed engagement\n👇 Ready to launch? Tap 'Approve & Schedule' or fine-tune in AI Image Studio!`;
       postHashtags = ['#VisualStorytelling', '#CreativeDesign', '#BrandAesthetic', '#SocialMediaGrowth', '#ContentCreator'];
       postMedia = attachedImage;
-    } else if (/coffee|cafe|latte|roast|brew|espresso|croissant|bakery|barista|cappuccino|tea|breakfast/i.test(p)) {
-      postTitle = 'Artisan Espresso & Morning Rituals ☕';
+    } else if (/hp|laptop|notebook|macbook|thinkpad|dell|asus|acer|lenovo|chromebook|surface|gaming pc|desktop|ultrabook|\bpc\b|workstation|hardware|intel|amd|nvidia|rtx/i.test(p)) {
+      // DOMAIN: Laptops & Tech Hardware
+      const brand = cleanSubject || 'HP Laptop';
+      if (isVariantRequest) {
+        postTitle = `${brand} (Variant 2): Ultra-Portable Freedom ✈️💻`;
+        postCaption = `Work from anywhere without missing a beat. ✈️ Meet the all-new ${brand}.\n\nEngineered for founders, developers, and creators on the move:\n\n✨ Featherlight chassis that slips effortlessly into your daily carry\n🔋 Up to 16 hours of untethered battery freedom on a single charge\n🔊 Studio-tuned audio & AI noise-canceling mics for crystal-clear calls\n⚡ Whisper-quiet thermal cooling during intensive multitasking\n\nUpgrade your mobile productivity today! 👇\n\nTap the link in bio to shop the latest lineup or drop your daily setup below! 🚀`;
+        postHashtags = [`#${brand.replace(/\s+/g, '')}`, '#RemoteWork', '#DigitalNomad', '#TechSetup', '#ProductivityGear', '#LaptopLifestyle'];
+        postMedia = 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1080&auto=format&fit=crop&q=85';
+      } else {
+        postTitle = `${brand}: Power Meets Everyday Precision 💻⚡`;
+        postCaption = `Unleash peak performance and all-day endurance with ${brand}! 💻✨\n\nWhether you're compiling multi-threaded code, rendering 4K creative assets, or multitasking through your busiest day:\n\n⚡ Next-gen multi-core processing power & instant responsiveness\n🎨 Micro-edge anti-glare display with vibrant, true-to-life color accuracy\n🔋 All-day battery life with fast-charge technology (0 to 50% in 30 mins)\n✨ Precision aluminum chassis crafted for effortless portability\n\nReady to elevate your daily workspace? 👇\n\nWhat's your must-have laptop feature: raw speed, screen quality, or battery life? Tell us below! 🚀`;
+        postHashtags = [`#${brand.replace(/\s+/g, '')}`, '#LaptopLife', '#TechSetup', '#ProductivityGear', '#WorkFromAnywhere', '#TechInnovation', '#CreatorCommunity'];
+        postMedia = 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=1080&auto=format&fit=crop&q=85';
+      }
+    } else if (/eduactional|educational|education|learning|tutorial|course|study|student|learn|knowledge|tips|guide|infographic|lesson|skill/i.test(p)) {
+      // DOMAIN: Educational & Learning
+      const topic = cleanSubject || 'Daily Knowledge Drop';
+      postTitle = `${topic}: 3 Frameworks to Learn Faster 🧠📚`;
+      postCaption = `Continuous growth isn't about working harder—it's about learning smarter. 🧠✨\n\nHere are 3 research-backed strategies to accelerate your mastery:\n\n1️⃣ The 80/20 Framework: Identify the 20% of core fundamentals that produce 80% of real-world outcomes.\n2️⃣ Active Recall over Passive Reading: Test yourself immediately after consuming information to lock in retention.\n3️⃣ The Feynman Technique: Explain complex concepts simply in your own words. If you stumble, revisit the gaps.\n\nSave this post to sharpen your workflow during your next deep-work session! 📌\n\nWhat is one skill you are committed to mastering this month? Share below! 👇`;
+      postHashtags = ['#ContinuousLearning', '#GrowthMindset', '#EducationalTips', '#StudyMotivation', '#SkillBuilding', '#PersonalGrowth', '#DeepWork'];
+      postMedia = isVariantRequest
+        ? 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=1080&auto=format&fit=crop&q=85'
+        : 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=1080&auto=format&fit=crop&q=85';
+    } else if (/coffee|cafe|latte|roast|brew|espresso|croissant|bakery|barista|cappuccino|tea|breakfast|restaurant|food|burger|pizza|dining/i.test(p)) {
+      // DOMAIN: Food, Coffee & Dining
+      const cafeName = cleanSubject || 'Artisan Espresso';
+      postTitle = `${cafeName} & Morning Rituals ☕🥐`;
       postCaption = 'Behind every great morning is a slow, intentional ritual ☕🥐 Small-batch single-origin beans, velvety microfoam, and pastries baked fresh at sunrise.\n\nHow do you take your first cup of the day? Drop your go-to order below! 👇';
       postHashtags = ['#ArtisanCoffee', '#CoffeeLovers', '#MorningRitual', '#CafeVibes', '#SpecialtyRoast', '#BaristaLife'];
       postMedia = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=1080&auto=format&fit=crop&q=85';
     } else if (/samsung|s24|galaxy|iphone|apple|phone|mobile|smartphone|android|pixel|device|gadget/i.test(p)) {
-      postTitle = 'Next-Gen Mobile Intelligence 📱';
+      // DOMAIN: Smartphones & Mobile
+      const phoneName = cleanSubject || 'Flagship Smartphone';
+      postTitle = `${phoneName}: Next-Gen Intelligence 📱✨`;
       postCaption = 'Sleek aerospace titanium meets pro-grade imaging. 📱✨ From on-device AI live translation to low-light nightography, elevate how you create and connect on the go.\n\nReady for the next upgrade? Tell us your favorite feature below! 👇';
       postHashtags = ['#SmartphoneInnovation', '#TechTrends', '#MobilePhotography', '#GadgetLovers', '#NextGenTech'];
       postMedia = 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1080&auto=format&fit=crop&q=85';
-    } else if (/ai|tech|software|agent|code|data|startup|launch|laptop|macbook|computer|developer|saas/i.test(p)) {
-      postTitle = 'Autonomous AI Workflows 🤖';
-      postCaption = 'Why spend countless manual hours managing social channels when an autonomous AI team can research competitor angles, draft viral hooks, and schedule 24/7? 🚀✨\n\nWork smarter, build faster. Save this post & discover autonomous productivity! 📌';
-      postHashtags = ['#ArtificialIntelligence', '#Automation', '#FutureOfWork', '#TechStartup', '#CreatorEconomy', '#Innovation'];
-      postMedia = 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1080&auto=format&fit=crop&q=85';
-    } else if (/fashion|wear|outfit|style|clothing|streetwear|hoodie|dress|luxury|lookbook|sneaker/i.test(p)) {
-      postTitle = 'Curated Minimal Aesthetics 🖤';
+    } else if (/fashion|wear|outfit|style|clothing|streetwear|hoodie|dress|luxury|lookbook|sneaker|apparel/i.test(p)) {
+      // DOMAIN: Fashion & Streetwear
+      const brand = cleanSubject || 'Minimal Modern';
+      postTitle = `${brand}: Seasonal Collection 🖤✨`;
       postCaption = 'Effortless silhouettes meet structured minimalism. 🧥✨ Designed for the modern wardrobe and tailored to stand out with subtle confidence.\n\nWhich piece are you wearing first? Tap the link in bio to shop the limited drop! 🛍️';
       postHashtags = ['#FashionInspo', '#StreetStyle', '#OOTD', '#MinimalFashion', '#CuratedWardrobe', '#StyleInspiration'];
       postMedia = 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1080&auto=format&fit=crop&q=85';
-    } else if (/gym|fitness|workout|health|train|exercise|muscle|run|fit|wellness|yoga/i.test(p)) {
-      postTitle = 'Consistency Beats Motivation ⚡';
+    } else if (/gym|fitness|workout|health|train|exercise|muscle|run|fit|wellness|yoga|crossfit/i.test(p)) {
+      // DOMAIN: Fitness & Health
+      const title = cleanSubject || 'Daily Fitness';
+      postTitle = `${title}: Consistency Beats Motivation ⚡`;
       postCaption = 'The hardest part isn’t the workout—it’s deciding to show up. 💪🔥 Small, consistent efforts compounded over time create undeniable results.\n\nTag your workout partner below and let’s crush today’s goals! 👊';
       postHashtags = ['#FitnessMotivation', '#DailyGrind', '#WorkoutRoutine', '#HealthyHabits', '#StrengthAndConditioning'];
       postMedia = 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1080&auto=format&fit=crop&q=85';
-    } else if (/skin|beauty|cosmetic|glow|makeup|serum|cream|hair|spa/i.test(p)) {
-      postTitle = 'Golden Hour Clean Glow ✨';
+    } else if (/skin|beauty|cosmetic|glow|makeup|serum|cream|hair|spa|skincare/i.test(p)) {
+      // DOMAIN: Beauty & Skincare
+      const beautyName = cleanSubject || 'Clean Beauty';
+      postTitle = `${beautyName}: Golden Hour Clean Glow ✨`;
       postCaption = 'Healthy, radiant skin starts with gentle rituals and nourishing botanicals. 🌿💧 Hydrate, protect, and let your natural skin glow without compromise.\n\nWhat’s your holy-grail skincare step? Share below! 🌸';
       postHashtags = ['#CleanBeauty', '#SkincareRoutine', '#GlowingSkin', '#SelfCareSunday', '#NaturalCosmetics'];
       postMedia = 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=1080&auto=format&fit=crop&q=85';
-    } else if (/travel|trip|vacation|explore|flight|beach|mountain|hotel|tour|adventure/i.test(p)) {
-      postTitle = 'Wanderlust Chronicles ✈️';
+    } else if (/travel|trip|vacation|explore|flight|beach|mountain|hotel|tour|adventure|destination/i.test(p)) {
+      // DOMAIN: Travel & Adventure
+      const destination = cleanSubject || 'Wanderlust Chronicles';
+      postTitle = `${destination}: Discover New Horizons ✈️🌍`;
       postCaption = 'Always take the scenic route. 🌅🌍 Breathe in the salt air, chase the sunset, and let the adventure unfold.\n\nWhere is your dream getaway this year? Save this for your upcoming bucket list! 📌✈️';
       postHashtags = ['#Wanderlust', '#TravelDiaries', '#ExploreMore', '#ScenicViews', '#TravelGoals'];
       postMedia = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1080&auto=format&fit=crop&q=85';
-    } else if (/home|house|interior|decor|room|apartment|design|architecture|real estate/i.test(p)) {
-      postTitle = 'Modern Architecture Sanctuary 🏡';
+    } else if (/home|house|interior|decor|room|apartment|architecture|real estate|living/i.test(p)) {
+      // DOMAIN: Real Estate & Interior
+      const decorTitle = cleanSubject || 'Modern Architecture';
+      postTitle = `${decorTitle}: Architectural Sanctuary 🏡✨`;
       postCaption = 'Natural sunlit angles, warm walnut textures, and calm organic acoustics. 🌿🛋️ Designing spaces that evoke peace, clarity, and inspired living.\n\nCould you spend your weekends here? Tell us your favorite corner! 👇';
       postHashtags = ['#InteriorDesign', '#DreamHome', '#ModernArchitecture', '#CozyLiving', '#HomeInspiration'];
       postMedia = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1080&auto=format&fit=crop&q=85';
-    } else if (/sale|discount|promo|deal|coupon|offer|black friday|cyber|50%|20%|off/i.test(p)) {
-      postTitle = 'Exclusive VIP Offer: Limited Time 🔥';
-      postCaption = 'Because our community deserves the best—enjoy an exclusive seasonal special! 🎁✨ Premium quality, crafted with care, available for a limited window.\n\nDon’t miss out! Tap the link in bio to claim yours today! ⏳🛍️';
+    } else if (/sale|discount|promo|deal|coupon|offer|black friday|cyber|50%|20%|off|flash sale/i.test(p)) {
+      // DOMAIN: Sales & Deals
+      const saleName = cleanSubject || 'Exclusive VIP Offer';
+      postTitle = `${saleName}: Limited Time Only 🔥🏷️`;
+      postCaption = 'Because our community deserves the best—enjoy an exclusive seasonal special! 🎁✨ Premium quality, crafted with care, available for a strictly limited window.\n\nDon’t miss out! Tap the link in bio to claim yours today! ⏳🛍️';
       postHashtags = ['#SpecialOffer', '#LimitedEdition', '#VIPAccess', '#FlashSale', '#ShopNow'];
       postMedia = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1080&auto=format&fit=crop&q=85';
+    } else if (/\b(ai|artificial intelligence|machine learning|saas|software|developer|coding|web dev|automation|bot|cyber)\b/i.test(p)) {
+      // DOMAIN: AI Software & SaaS (strictly software, hardware routed above)
+      const aiSubject = cleanSubject || 'Autonomous AI Workflows';
+      postTitle = `${aiSubject} 🤖⚡`;
+      postCaption = 'Why spend countless manual hours managing social channels when an autonomous AI team can research competitor angles, draft viral hooks, and schedule 24/7? 🚀✨\n\nWork smarter, build faster. Save this post & discover autonomous productivity! 📌';
+      postHashtags = ['#ArtificialIntelligence', '#Automation', '#FutureOfWork', '#TechStartup', '#CreatorEconomy', '#Innovation'];
+      postMedia = 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1080&auto=format&fit=crop&q=85';
     } else {
-      postTitle = trimmed.length > 4 ? trimmed.slice(0, 36) : 'Crafted with Purpose ✨';
-      postCaption = `${trimmed}\n\nWhen passion meets precision, the results speak for themselves. ✨ Every detail crafted to inspire, engage, and connect with your audience.\n\nDrop a '🔥' in the comments if you love this creative! 👇`;
-      postHashtags = ['#CreativeDirection', '#SocialMediaGrowth', '#VisualStorytelling', '#BrandIdentity', '#ContentCreator'];
-      postMedia = 'https://images.unsplash.com/photo-1542744094-3a31f272c490?w=1080&auto=format&fit=crop&q=85';
+      // DOMAIN: Dynamic Intelligent Fallback for ANY custom topic/product
+      const dynamicSubject = cleanSubject || (trimmed.length > 3 ? trimmed.slice(0, 32) : 'Signature Collection');
+      postTitle = `${dynamicSubject}: Elevated Design & True Quality ✨`;
+      postCaption = `Introducing the next standard of ${dynamicSubject} ✨\n\nCrafted for those who appreciate authenticity, refined details, and flawless execution:\n\n💎 Premium materials and thoughtful design in every single touchpoint\n⚡ Engineered to seamlessly elevate your everyday lifestyle\n🌟 Built with passion to inspire lasting confidence and connection\n\nReady to experience the difference? 👇\n\nDrop a '🔥' in the comments or tap the link in bio to explore more!`;
+      postHashtags = [`#${dynamicSubject.replace(/[^a-zA-Z0-9]/g, '')}`, '#QualityFirst', '#DesignExcellence', '#CommunityFirst', '#Trendsetter', '#BrandBuilding'];
+      postMedia = 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1080&auto=format&fit=crop&q=85';
     }
 
     const planNumber = Math.floor(Math.random() * 80) + 33;
     const planId = `plan-${planNumber}-${Date.now()}`;
+    const displaySubject = cleanSubject || (trimmed.length > 28 ? `${trimmed.slice(0, 25)}...` : trimmed);
 
     const newPlan: AgentPlan = {
       id: planId,
-      title: attachedImage ? `Custom Visual Plan #${planNumber}` : `Generate: "${trimmed.slice(0, 26)}..."`,
+      title: attachedImage ? `Custom Visual Plan #${planNumber}` : `Plan #${planNumber}: "${displaySubject}"`,
       planNumber,
       timeAgo: 'Just now',
       status: 'in_progress',
@@ -1007,8 +1139,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         {
           id: `step-${Date.now()}-1`,
           agentId: 'creator',
-          title: attachedImage ? 'Analyze visual harmony & draft copy' : `Draft copy & hashtags for "${trimmed.slice(0, 22)}"`,
-          instruction: attachedImage ? 'Extract composition cues from reference image and formulate matching caption.' : 'Draft captions, curate trending hashtags, and prepare visual assets.',
+          title: attachedImage ? 'Analyze visual harmony & draft copy' : `Draft copy & hashtags for "${displaySubject}"`,
+          instruction: attachedImage ? 'Extract composition cues from reference image and formulate matching caption.' : `Formulate high-converting platform copy, curate trending hashtags, and match visual assets for ${displaySubject}.`,
           status: 'running',
           duration: 'In progress',
         },
@@ -1024,13 +1156,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setActivePlan(newPlan);
-    updateAgentStatus('creator', 'working', attachedImage ? 'Analyzing reference image & drafting copy' : `Drafting content for "${trimmed.slice(0, 26)}"`);
+    updateAgentStatus('creator', 'working', attachedImage ? 'Analyzing reference image & drafting copy' : `Drafting content for "${displaySubject}"`);
     updateAgentStatus('master', 'idle', 'Supervising creative workflow');
 
     logActivity(
       'plan_started',
       `Plan #${planNumber} Started`,
-      attachedImage ? 'Master Agent delegated visual-first post generation' : `Master Agent delegated tasks for "${trimmed.slice(0, 26)}"`,
+      attachedImage ? 'Master Agent delegated visual-first post generation' : `Master Agent delegated tasks for "${displaySubject}"`,
       '⚡'
     );
 
@@ -1040,7 +1172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       role: 'assistant',
       content: attachedImage
         ? `📸 **Reference Image Detected!**\n- Creator Agent is analyzing composition, lighting, and brand tone from your uploaded visual.\n- Formulating platform-optimized copy, hashtag strategy, and peak engagement slot.\n\nI have queued Plan #${planNumber}. Watch real-time execution below:`
-        : `Planned:\n- Creator Agent is formulating platform-specific captions and asset prompts.\n- Scheduler Agent will analyze peak audience engagement slots and sync via Blotato.\n\nI have queued Plan #${planNumber}. Watch real-time execution below:`,
+        : `Planned:\n- Creator Agent is formulating platform-specific captions and asset prompts for **${displaySubject}**.\n- Scheduler Agent will analyze peak audience engagement slots and sync via Blotato.\n\nI have queued Plan #${planNumber}. Watch real-time execution below:`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       plan: newPlan,
     };

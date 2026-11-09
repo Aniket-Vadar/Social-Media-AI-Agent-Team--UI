@@ -49,6 +49,7 @@ export default function AgentsPage() {
     posts,
     updatePost,
     logActivity,
+    showSuccess,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'chat' | 'tasks' | 'computer' | 'settings'>('chat');
@@ -84,6 +85,14 @@ export default function AgentsPage() {
         setSelectedPostForDetail(lastPostWithMedia);
         setEditingImage(lastPostWithMedia.mediaUrl);
         setIsImageEditorOpen(true);
+        return;
+      }
+    }
+    if (prompt.includes('Approve & Schedule')) {
+      const pendingPost = posts.find(p => p.status === 'pending_approval') || posts[0];
+      if (pendingPost) {
+        updatePost(pendingPost.id, { status: 'scheduled' });
+        showSuccess(`Post "${pendingPost.title}" approved & scheduled on Blotato!`);
         return;
       }
     }
@@ -244,32 +253,20 @@ export default function AgentsPage() {
                 )}
               </button>
 
-              {/* Sandbox Virtual Box Tab */}
+              {/* Agent Searching Tab */}
               <button
                 onClick={() => setActiveTab('computer')}
                 className={`py-3 relative transition-colors flex items-center gap-1.5 ${
                   activeTab === 'computer' ? 'text-brand-600 font-bold' : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
-                <Laptop className="w-3.5 h-3.5" />
-                <span>Virtual Box</span>
+                <Search className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Agent Searching</span>
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </span>
                 {activeTab === 'computer' && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500 rounded-full" />
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`py-3 relative transition-colors ${
-                  activeTab === 'settings' ? 'text-brand-600' : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                <span>Settings</span>
-                {activeTab === 'settings' && (
                   <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500 rounded-full" />
                 )}
               </button>
