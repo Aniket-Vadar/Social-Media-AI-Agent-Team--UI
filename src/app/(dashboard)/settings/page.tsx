@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Link from 'next/link';
 import {
   Link2,
@@ -19,13 +19,15 @@ import {
   Database,
   Trash2,
   Zap,
-  BookOpen,
-  Server,
   RefreshCw,
+  Upload,
+  Eye,
+  EyeOff,
+  FileText,
+  Check,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
-import { BACKEND_URL, BACKEND_DOCS_URL, backendApi } from '@/lib/api/backend';
 
 export default function SettingsPage() {
   const {
@@ -45,8 +47,26 @@ export default function SettingsPage() {
     refreshBackendStatus,
   } = useApp();
 
-  const [isReplacingKey, setIsReplacingKey] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(zernioApiKey);
+  const [isReplacingKey, setIsReplacingKey] = useState(!zernioApiKey);
+  const [apiKeyInput, setApiKeyInput] = useState(zernioApiKey || '');
+  const [showKey, setShowKey] = useState(false);
+
+  const [customAiKey, setCustomAiKey] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('socialix_custom_ai_key') || '';
+    }
+    return '';
+  });
+  const [showAiKey, setShowAiKey] = useState(false);
+  const [isReplacingAiKey, setIsReplacingAiKey] = useState(false);
+
+  const [uploadFeedback, setUploadFeedback] = useState<{
+    type: 'success' | 'info' | 'error';
+    message: string;
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [approvalMode, setApprovalMode] = useState<'manual' | 'auto'>('manual');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -58,8 +78,107 @@ export default function SettingsPage() {
   };
 
   const handleSaveKey = () => {
-    setZernioApiKey(apiKeyInput);
+    setZernioApiKey(apiKeyInput.trim());
     setIsReplacingKey(false);
+    setUploadFeedback({
+      type: 'success',
+      message: 'Zernio API key saved securely in browser!',
+    });
+    setTimeout(() => setUploadFeedback(null), 4000);
+  };
+
+  const handleDisconnectKey = () => {
+    setApiKeyInput('');
+    setZernioApiKey('');
+    setIsReplacingKey(true);
+    setUploadFeedback({
+      type: 'info',
+      message: 'API key cleared.',
+    });
+    setTimeout(() => setUploadFeedback(null), 4000);
+  };
+
+  const handleSaveAiKey = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('socialix_custom_ai_key', customAiKey.trim());
+    }
+    setIsReplacingAiKey(false);
+    setUploadFeedback({
+      type: 'success',
+      message: 'AI Provider key saved securely in browser!',
+    });
+    setTimeout(() => setUploadFeedback(null), 4000);
+  };
+
+  const handleKeyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const content = ev.target?.result as string;
+      if (!content) return;
+
+      let foundZernio = '';
+      let foundAi = '';
+
+      const lines = content.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+
+        if (/^(ZERNIO_API_KEY|NEXT_PUBLIC_ZERNIO_API_KEY)\s*=/i.test(trimmed)) {
+          const match = trimmed.match(/^(?:ZERNIO_API_KEY|NEXT_PUBLIC_ZERNIO_API_KEY)\s*=\s*["']?([^"'\s]+)["']?/i);
+          if (match && match[1]) foundZernio = match[1];
+        } else if (/^(OPENAI_API_KEY|GEMINI_API_KEY|ANTHROPIC_API_KEY|AI_API_KEY)\s*=/i.test(trimmed)) {
+          const match = trimmed.match(/^(?:OPENAI_API_KEY|GEMINI_API_KEY|ANTHROPIC_API_KEY|AI_API_KEY)\s*=\s*["']?([^"'\s]+)["']?/i);
+          if (match && match[1]) foundAi = match[1];
+        } else if (/^sk_[a-zA-Z0-9_-]{20,}$/.test(trimmed)) {
+          if (!foundZernio) foundZernio = trimmed;
+        }
+      }
+
+      if (foundZernio) {
+        setApiKeyInput(foundZernio);
+        setZernioApiKey(foundZernio);
+        setIsReplacingKey(false);
+      }
+      if (foundAi) {
+        setCustomAiKey(foundAi);
+        setIsReplacingAiKey(false);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('socialix_custom_ai_key', foundAi);
+        }
+      }
+
+      if (foundZernio || foundAi) {
+        setUploadFeedback({
+          type: 'success',
+          message: `Successfully loaded ${[foundZernio ? 'Zernio publishing key' : '', foundAi ? 'AI model key' : ''].filter(Boolean).join(' and ')} from ${file.name}!`,
+        });
+        setTimeout(() => setUploadFeedback(null), 5000);
+      } else {
+        const singleToken = content.trim();
+        if (singleToken.length > 15 && !singleToken.includes('\n')) {
+          setApiKeyInput(singleToken);
+          setZernioApiKey(singleToken);
+          setIsReplacingKey(false);
+          setUploadFeedback({
+            type: 'success',
+            message: `Configured API key from ${file.name}!`,
+          });
+          setTimeout(() => setUploadFeedback(null), 5000);
+        } else {
+          setUploadFeedback({
+            type: 'error',
+            message: `Could not parse keys in ${file.name}. Please enter your key manually below.`,
+          });
+          setTimeout(() => setUploadFeedback(null), 6000);
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (
@@ -69,94 +188,64 @@ export default function SettingsPage() {
         subtitle="Campaign, team and workspace preferences"
       />
 
+      {/* Hidden file input for uploading .env or key file */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleKeyFileUpload}
+        accept=".env,.txt,.json,text/plain"
+        className="hidden"
+      />
+
       {/* Main Container */}
       <div className="max-w-4xl space-y-8 select-none">
-        {/* Section: Backend & API Documentation */}
+        {/* Section: API Keys & Credentials */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-xl bg-indigo-50 text-indigo-600">
-              <Server className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-gray-900">AI Agent Backend & API Documentation</h2>
-              <p className="text-xs text-gray-400">
-                Connected production backend serving FastAPI, LangGraph agents, and media processing.
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-gray-900">{BACKEND_URL}</span>
-                  <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                      backendStatus === 'online'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        backendStatus === 'online' ? 'bg-emerald-500' : 'bg-amber-500'
-                      }`}
-                    />
-                    {backendStatus === 'online' ? 'Production Online' : 'Connecting / Waking'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  Provides 20+ REST & SSE endpoints for agent execution, post generation, scheduling, and analytics.
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-xl bg-purple-50 text-brand-600">
+                <Key className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-gray-900">API Keys & Integrations</h2>
+                <p className="text-xs text-gray-400">
+                  Securely upload your key file or configure credentials. Keys are saved in your browser and never publicly exposed.
                 </p>
               </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => refreshBackendStatus()}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all"
-                  title="Check health probe"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-gray-500" />
-                  <span>Check Health</span>
-                </button>
-
-                <Link
-                  href="/docs"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xs transition-all"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>API Docs</span>
-                </Link>
-
-                <a
-                  href={BACKEND_DOCS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-700 text-xs font-semibold transition-all"
-                >
-                  <span>Swagger UI</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Section: Integrations (Matches screenshot ref 18) */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-xl bg-purple-50 text-brand-600">
-              <Link2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-gray-900">Integrations</h2>
-              <p className="text-xs text-gray-400">
-                Services this app uses on your behalf. Keys are stored encrypted and never leave the server.
-              </p>
-            </div>
+            {/* Quick Upload Key Button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
+              title="Upload your .env or API key text file"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload Key File (.env)</span>
+            </button>
           </div>
 
-          {/* Zernio Card (Replaces Blotato - Matches user Zernio studio screenshot) */}
+          {/* Feedback Banner */}
+          {uploadFeedback && (
+            <div
+              className={`p-3.5 rounded-2xl text-xs font-medium flex items-center gap-2.5 transition-all ${
+                uploadFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : uploadFeedback.type === 'error'
+                  ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                  : 'bg-gray-100 text-gray-800 border border-gray-200'
+              }`}
+            >
+              {uploadFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              ) : (
+                <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+              )}
+              <span>{uploadFeedback.message}</span>
+            </div>
+          )}
+
+          {/* Zernio Social Publishing Key Card */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-6">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-4">
@@ -169,9 +258,19 @@ export default function SettingsPage() {
                       <span className="text-red-600">zernio</span>
                       <span className="text-gray-400 font-normal text-xs">/v1/posts</span>
                     </h3>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Connected
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                        apiKeyInput || zernioApiKey
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          apiKeyInput || zernioApiKey ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`}
+                      />
+                      {apiKeyInput || zernioApiKey ? 'Connected' : 'Key Needed'}
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 leading-relaxed max-w-xl">
@@ -192,22 +291,48 @@ export default function SettingsPage() {
               </a>
             </div>
 
-            {/* API Key Box */}
+            {/* API Key Box with Password Masking & Show/Hide Eye */}
             <div className="p-3.5 rounded-2xl border border-gray-200 bg-gray-50/60 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 flex-1">
                 <Key className="w-4 h-4 text-gray-400 flex-shrink-0" />
                 {isReplacingKey ? (
-                  <input
-                    type="text"
-                    value={apiKeyInput}
-                    onChange={e => setApiKeyInput(e.target.value)}
-                    placeholder="Enter Zernio API Key (e.g. zr_live_...)"
-                    className="w-full bg-white px-3 py-1.5 rounded-xl border border-gray-300 text-xs text-gray-800 font-mono focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      type={showKey ? 'text' : 'password'}
+                      value={apiKeyInput}
+                      onChange={e => setApiKeyInput(e.target.value)}
+                      placeholder="Paste or enter Zernio API Key (sk_...)"
+                      className="w-full bg-white pr-9 px-3 py-1.5 rounded-xl border border-gray-300 text-xs text-gray-800 font-mono focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKey(prev => !prev)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      title={showKey ? 'Hide key' : 'Show key'}
+                    >
+                      {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 ) : (
-                  <span className="text-xs font-mono text-gray-700 tracking-wider">
-                    {apiKeyInput ? `${apiKeyInput.slice(0, 7)}•••••••••••••••••••••••••••••${apiKeyInput.slice(-4)}` : 'sk_2ac4•••••••••••••••••••••••••••••6b05'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-gray-700 tracking-wider">
+                      {apiKeyInput
+                        ? showKey
+                          ? apiKeyInput
+                          : `${apiKeyInput.slice(0, 6)}••••••••••••••••••••${apiKeyInput.slice(-4)}`
+                        : 'No API key configured'}
+                    </span>
+                    {apiKeyInput && (
+                      <button
+                        type="button"
+                        onClick={() => setShowKey(prev => !prev)}
+                        className="text-gray-400 hover:text-gray-600 p-0.5"
+                        title={showKey ? 'Hide key' : 'Show key'}
+                      >
+                        {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -228,12 +353,77 @@ export default function SettingsPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => alert('Disconnected Zernio integration')}
+                  onClick={handleDisconnectKey}
                   className="px-3 py-1.5 rounded-xl text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
                 >
                   Disconnect
                 </button>
               </div>
+            </div>
+
+            {/* Optional AI Model Key Configuration */}
+            <div className="p-3.5 rounded-2xl border border-gray-200/80 bg-white space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                  <span className="text-xs font-bold text-gray-800">Custom AI Model Provider Key (Optional)</span>
+                  <span className="text-[10px] text-gray-400 font-medium">OpenAI / Gemini / Anthropic</span>
+                </div>
+                {customAiKey && !isReplacingAiKey && (
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    ✓ Configured
+                  </span>
+                )}
+              </div>
+
+              {isReplacingAiKey || !customAiKey ? (
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="relative flex-1">
+                    <input
+                      type={showAiKey ? 'text' : 'password'}
+                      value={customAiKey}
+                      onChange={e => setCustomAiKey(e.target.value)}
+                      placeholder="sk-... or AI provider key"
+                      className="w-full bg-gray-50 pr-9 px-3 py-1.5 rounded-xl border border-gray-300 text-xs text-gray-800 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAiKey(prev => !prev)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      title={showAiKey ? 'Hide key' : 'Show key'}
+                    >
+                      {showAiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleSaveAiKey}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors shadow-xs"
+                  >
+                    Save
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-gray-600">
+                      {showAiKey ? customAiKey : `${customAiKey.slice(0, 4)}••••••••••••••••••••${customAiKey.slice(-4)}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAiKey(prev => !prev)}
+                      className="text-gray-400 hover:text-gray-600 p-0.5"
+                    >
+                      {showAiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setIsReplacingAiKey(true)}
+                    className="px-2.5 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+                  >
+                    Change Key
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Connected Accounts Sub-Section */}

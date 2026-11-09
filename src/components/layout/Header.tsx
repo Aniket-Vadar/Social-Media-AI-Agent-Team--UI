@@ -52,17 +52,6 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
       {/* Right Actions */}
       <div className="flex items-center gap-3">
-        {/* Backend API Docs & Live Status Badge */}
-        <Link
-          href="/docs"
-          className="hidden md:flex items-center gap-2 px-3 py-2 rounded-2xl bg-white border border-gray-200/80 shadow-xs hover:border-indigo-300 text-xs text-gray-700 hover:text-indigo-600 transition-all font-medium"
-          title="View Backend API Documentation (Swagger / OpenAPI)"
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>API Docs</span>
-          <span className="text-[10px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">v1</span>
-        </Link>
-
         {/* Global Search Bar */}
         <button
           onClick={() => setIsCommandPaletteOpen(true)}

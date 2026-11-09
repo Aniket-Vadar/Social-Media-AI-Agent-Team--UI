@@ -48,7 +48,6 @@ export const Sidebar: React.FC = () => {
     { label: 'Calendar', href: '/calendar', icon: Calendar },
     { label: 'Analytics', href: '/analytics', icon: BarChart3 },
     { label: 'Accounts', href: '/settings', icon: Link2 },
-    { label: 'API Docs', href: '/docs', icon: BookOpen, badge: 'Live' },
   ];
 
   const isRouteActive = (href: string) => {

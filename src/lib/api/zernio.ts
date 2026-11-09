@@ -73,9 +73,9 @@ class ZernioClient {
 
   getApiKey(): string {
     if (!this.apiKey && typeof window !== 'undefined') {
-      this.apiKey = localStorage.getItem('socialix_zernio_key') || process.env.NEXT_PUBLIC_ZERNIO_API_KEY || 'sk_2ac4b59d4feb232a496994f1bd1e430504c8e96e7d4d58c4dd7d97b6f4746b05';
+      this.apiKey = localStorage.getItem('socialix_zernio_key') || process.env.NEXT_PUBLIC_ZERNIO_API_KEY || '';
     }
-    return this.apiKey || process.env.ZERNIO_API_KEY || 'sk_2ac4b59d4feb232a496994f1bd1e430504c8e96e7d4d58c4dd7d97b6f4746b05';
+    return this.apiKey || process.env.ZERNIO_API_KEY || '';
   }
 
   /**
