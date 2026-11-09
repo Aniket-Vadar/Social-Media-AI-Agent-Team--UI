@@ -7,6 +7,7 @@ import { CreatePostModal } from '@/components/modals/CreatePostModal';
 import { ImageEditorModal } from '@/components/modals/ImageEditorModal';
 import { CommandPalette } from '@/components/modals/CommandPalette';
 import { PostDetailSheet } from '@/components/modals/PostDetailSheet';
+import { RescheduleModal } from '@/components/modals/RescheduleModal';
 import { useApp } from '@/context/AppContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -34,6 +35,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ImageEditorModal />
       <CommandPalette />
       <PostDetailSheet />
+      <RescheduleModal />
     </div>
   );
 }

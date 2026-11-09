@@ -109,6 +109,8 @@ interface AppContextType {
   setEditingImage: (img: string) => void;
   selectedPostForDetail: Post | null;
   setSelectedPostForDetail: (post: Post | null) => void;
+  reschedulingPost: Post | null;
+  setReschedulingPost: (post: Post | null) => void;
   isCommandPaletteOpen: boolean;
   setIsCommandPaletteOpen: (open: boolean) => void;
   sidebarCollapsed: boolean;
@@ -129,6 +131,17 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -170,6 +183,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isImageEditorOpen, setIsImageEditorOpen] = useState(false);
   const [editingImage, setEditingImage] = useState('/images/coffee-latte.jpg');
   const [selectedPostForDetail, setSelectedPostForDetail] = useState<Post | null>(null);
+  const [reschedulingPost, setReschedulingPost] = useState<Post | null>(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notificationsCount, setNotificationsCount] = useState(0);
@@ -802,9 +816,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addPost = (postData: Omit<Post, 'id' | 'campaignId' | 'createdBy' | 'blotatoSynced' | 'zernioSynced'>): Post => {
+    const newPostId = generateUUID();
     const newPost: Post = {
       ...postData,
-      id: `post-${Date.now()}`,
+      id: newPostId,
       campaignId: activeCampaign.id || 'camp-default',
       createdBy: 'user',
       blotatoSynced: true,
@@ -834,17 +849,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .catch(err => console.warn('Zernio post creation deferred:', err));
 
     // Sync with production FastAPI backend
-    backendApi.createPost({
-      caption: newPost.caption,
-      title: newPost.title,
-      hashtags: newPost.hashtags,
-      platforms: [newPost.platform],
-      media_url: newPost.mediaUrl,
-      status: newPost.status,
-      scheduled_at: newPost.scheduledAt,
-    }).catch(err => {
-      console.warn('Backend post create deferred:', err);
-    });
+    backendApi
+      .createPost({
+        caption: newPost.caption,
+        title: newPost.title,
+        hashtags: newPost.hashtags,
+        platforms: [newPost.platform],
+        media_url: newPost.mediaUrl,
+        status: newPost.status,
+        scheduled_at: newPost.scheduledAt,
+      })
+      .then(res => {
+        if (res?.id) {
+          setPosts(current =>
+            current.map(p => (p.id === newPostId ? { ...p, id: res.id, backendId: res.id } : p))
+          );
+        }
+      })
+      .catch(err => {
+        console.warn('Backend post create deferred:', err);
+      });
 
     showSuccess(`Post "${newPost.title}" ${newPost.status === 'scheduled' ? 'scheduled on Zernio' : 'saved as draft'}!`);
     return newPost;
@@ -858,6 +882,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.status === 'scheduled' || updates.status === 'published') {
       showSuccess('Post approved and scheduled on Zernio!');
       const targetPost = nextPosts.find(p => p.id === id);
+      const targetApiId = targetPost?.backendId || id;
       if (targetPost) {
         zernioApi
           .createPost({
@@ -876,12 +901,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           })
           .catch(err => console.warn('Zernio scheduling:', err));
       }
-      backendApi.approvePost(id, { caption: updates.caption, scheduled_at: updates.scheduledAt }).catch(() => {});
+      backendApi.approvePost(targetApiId, { caption: updates.caption, scheduled_at: updates.scheduledAt }).catch(() => {});
     }
   };
 
   const deletePost = (id: string) => {
     const postToDelete = posts.find(p => p.id === id);
+    const targetApiId = postToDelete?.backendId || id;
     const nextPosts = posts.filter(p => p.id !== id);
     setPosts(nextPosts);
     if (postToDelete) {
@@ -890,10 +916,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     persistWorkspace({ posts: nextPosts });
     showSuccess('Post deleted.');
 
-    backendApi.deletePost(id).catch(() => {});
+    backendApi.deletePost(targetApiId).catch(() => {});
   };
 
   const reschedulePost = (id: string, newDate: string, newDisplay: string) => {
+    const targetPost = posts.find(p => p.id === id);
+    const targetApiId = targetPost?.backendId || id;
     const nextPosts = posts.map(p =>
       p.id === id
         ? { ...p, scheduledAt: newDate, scheduledDisplay: newDisplay, status: 'scheduled' as const }
@@ -904,7 +932,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     persistWorkspace({ posts: nextPosts });
     showSuccess(`Rescheduled for ${newDisplay}`);
 
-    backendApi.reschedulePost(id, newDate).catch(() => {});
+    backendApi.reschedulePost(targetApiId, newDate).catch(() => {});
   };
 
   const unschedulePost = (id: string) => {
@@ -1396,8 +1424,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateAgentStatus('scheduler', 'idle', 'Scheduled post on Zernio');
         updateAgentStatus('master', 'idle', 'Ready for next instruction');
 
+        const newAgentPostId = generateUUID();
         const createdPost: Post = {
-          id: `post-${Date.now()}`,
+          id: newAgentPostId,
           campaignId: activeCampaign.id || 'camp-default',
           title: postTitle,
           caption: postCaption,
@@ -1483,6 +1512,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             status: 'pending_approval',
             scheduled_at: createdPost.scheduledAt,
           })
+          .then(res => {
+            if (res?.id) {
+              setPosts(current =>
+                current.map(p => (p.id === newAgentPostId ? { ...p, id: res.id, backendId: res.id } : p))
+              );
+            }
+          })
           .catch(() => {});
       }, 1900);
     }, 1800);
@@ -1553,6 +1589,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setEditingImage,
         selectedPostForDetail,
         setSelectedPostForDetail,
+        reschedulingPost,
+        setReschedulingPost,
         isCommandPaletteOpen,
         setIsCommandPaletteOpen,
         sidebarCollapsed,

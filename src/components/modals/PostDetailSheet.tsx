@@ -26,6 +26,7 @@ export const PostDetailSheet: React.FC = () => {
     deletePost,
     updatePost,
     reschedulePost,
+    setReschedulingPost,
     setIsImageEditorOpen,
     setEditingImage,
   } = useApp();
@@ -181,11 +182,8 @@ export const PostDetailSheet: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                const newTime = prompt('Reschedule post (e.g. Sat, Oct 24, 7:00 PM EDT):', post.scheduledDisplay);
-                if (newTime) {
-                  reschedulePost(post.id, new Date().toISOString(), newTime);
-                  setSelectedPostForDetail(null);
-                }
+                setReschedulingPost(post);
+                setSelectedPostForDetail(null);
               }}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors"
             >

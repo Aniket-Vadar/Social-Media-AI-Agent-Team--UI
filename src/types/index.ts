@@ -45,6 +45,7 @@ export type PostStatus = 'draft' | 'pending_approval' | 'scheduled' | 'publishin
 
 export interface Post {
   id: string;
+  backendId?: string;
   campaignId: string;
   title: string;
   caption: string;

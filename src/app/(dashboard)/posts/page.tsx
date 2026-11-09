@@ -34,6 +34,7 @@ export default function PostsPage() {
     setIsImageEditorOpen,
     setEditingImage,
     setSelectedPostForDetail,
+    setReschedulingPost,
     loadDemoTemplate,
   } = useApp();
 
@@ -63,10 +64,7 @@ export default function PostsPage() {
 
   const handleEditReschedule = (post: Post) => {
     setActiveMenuPostId(null);
-    const newDate = prompt('Enter new date and time for schedule (e.g. Sat, Oct 24, 7:00 PM EDT):', post.scheduledDisplay);
-    if (newDate) {
-      reschedulePost(post.id, new Date().toISOString(), newDate);
-    }
+    setReschedulingPost(post);
   };
 
   return (
