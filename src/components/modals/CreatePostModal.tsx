@@ -62,12 +62,29 @@ export const CreatePostModal: React.FC = () => {
   const handleGenerateAI = () => {
     setIsGeneratingAI(true);
     setTimeout(() => {
-      setTitle('Morning Roasts & Flaky Croissants');
-      setCaption(
-        'Slow down. Breathe in the roasted aroma. The morning ritual you’ve been dreaming of is ready for you at our coffee bar 🥐☕'
-      );
-      setHashtags(['#CoffeeLovers', '#MorningRitual', '#CafeVibes', '#SpecialtyCoffee']);
-      setMediaUrl('/images/coffee-work.jpg');
+      const campName = activeCampaign?.name?.toLowerCase() || '';
+      if (/laptop|hardware|pc|computer|notebook/i.test(campName)) {
+        setTitle('HP Spectre x360: Precision & Peak Performance 💻⚡');
+        setCaption(
+          'Engineered for creators, developers, and visionaries. Meet the HP Spectre with edge-to-edge OLED clarity, all-day battery life, and next-gen multi-core processing power.\n\nReady to elevate your daily workspace? 🚀'
+        );
+        setHashtags(['#HPLaptop', '#TechSetup', '#CreatorGear', '#ProductivityBoost', '#NextGenTech']);
+        setMediaUrl('https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=1080&auto=format&fit=crop&q=85');
+      } else if (/ai|coding|code|developer|software/i.test(campName)) {
+        setTitle('AI Coding Agent: Powering 10x Developer Velocity 💻⚡');
+        setCaption(
+          'From prompt to production in seconds ⚡ Meet the new standard of engineering with autonomous AI coding agents! Clean architecture, automated unit tests, and real-time debugging inside your IDE.'
+        );
+        setHashtags(['#AICoding', '#DeveloperTools', '#CodingAgent', '#SoftwareEngineering', '#FullStack']);
+        setMediaUrl('https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1080&auto=format&fit=crop&q=85');
+      } else {
+        setTitle('Morning Roasts & Flaky Croissants ☕🥐');
+        setCaption(
+          'Slow down. Breathe in the roasted aroma. The morning ritual you’ve been dreaming of is ready for you at our coffee bar 🥐☕ Small-batch single-origin beans and velvety microfoam.'
+        );
+        setHashtags(['#CoffeeLovers', '#MorningRitual', '#CafeVibes', '#SpecialtyCoffee']);
+        setMediaUrl('https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=1080&auto=format&fit=crop&q=85');
+      }
       setIsGeneratingAI(false);
     }, 1200);
   };

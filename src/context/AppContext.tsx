@@ -1005,26 +1005,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .replace(/\s+/g, ' ')
         .trim();
 
-      cleaned = cleaned.replace(/^(can you |could you |please |hey |hi |hello |agent |team |socialix )+/i, '');
-      cleaned = cleaned.replace(
-        /^(create|creat|generate|genrate|genarate|write|writ|draft|make|mak|post|publish|design|build|produce)\s+(a |an |one |new |viral |high converting |engaging |social media |instagram |linkedin |facebook |x |twitter )*(post|content|caption|creative|reel|update|ad|copy|campaign|graphic)*\s*(for|about|on|regarding|around|of|centered on)*\s*/i,
-        ''
-      );
-      // Secondary cleanup for nested command phrasing like "a laptop post for" or "post for"
-      cleaned = cleaned.replace(/^(a |an |one )*(laptop |phone |product |brand )*(post|ad|caption|creative)\s+(for|about|on)\s*/i, '');
-      cleaned = cleaned.replace(/\s+(with|using|in|for)\s+(good|viral|creative|high converting|best|trending)*\s*(hashtags|caption|image|media|photo|visuals?).*$/i, '');
-      cleaned = cleaned.replace(/\s+(post|realted|related|content|creative|ad)$/i, '');
+      // Iteratively strip conversational greetings, helper words, and creation verbs
+      let prev = '';
+      while (prev !== cleaned) {
+        prev = cleaned;
+        cleaned = cleaned.replace(
+          /^(now|then|ok|okay|please|plz|pls|can you|could you|hey|hi|hello|agent|team|socialix|master|so|just|go ahead and)\b\s*/i,
+          ''
+        );
+        cleaned = cleaned.replace(
+          /^(create|creat|generate|genrate|genarate|write|writ|draft|make|mak|post|publish|design|build|produce)\s+(a |an |one |new |viral |high converting |engaging |social media |instagram |linkedin |facebook |x |twitter )*(post|content|caption|creative|reel|update|ad|copy|campaign|graphic)*\s*/i,
+          ''
+        );
+        cleaned = cleaned.replace(
+          /^(a |an |one )*(laptop |phone |product |brand |ai |coding )*(post|ad|caption|creative)\s*/i,
+          ''
+        );
+        cleaned = cleaned.replace(
+          /^(for|about|on|regarding|around|of|centered on|related to|realted to|releted to|related|realted|releted|with respect to|concerning|featuring)\s*/i,
+          ''
+        );
+      }
+
+      // Iteratively strip trailing commands (e.g. "and post it now", "schedule it now", "right now", "post it", etc.)
+      let prevTrail = '';
+      while (prevTrail !== cleaned) {
+        prevTrail = cleaned;
+        cleaned = cleaned.replace(
+          /\s+(and\s+)?(post|publish|schedule|share|queue|send)\s+(it|this|them)?(\s*(now|immediately|right now|asap|today))?$/i,
+          ''
+        );
+        cleaned = cleaned.replace(/\s+(and\s+)?(do it now|right now|immediately|now|asap|today)$/i, '');
+        cleaned = cleaned.replace(
+          /\s+(with|using|in|for)\s+(good|viral|creative|high converting|best|trending)*\s*(hashtags|caption|image|media|photo|visuals?).*$/i,
+          ''
+        );
+        cleaned = cleaned.replace(/\s+(post|realted|related|content|creative|ad)$/i, '');
+      }
+
       return cleaned.trim();
     };
 
     const formatSubjectTitle = (subject: string): string => {
       if (!subject) return '';
-      const acronyms = new Set(['HP', 'AI', 'PC', '4K', 'OLED', 'S24', 'ASUS', 'ACER', 'DELL', 'VIP', 'GPU', 'CPU', 'RAM', 'SSD', 'USA', 'UK']);
+      const acronyms = new Set([
+        'HP',
+        'AI',
+        'PC',
+        '4K',
+        'OLED',
+        'S24',
+        'ASUS',
+        'ACER',
+        'DELL',
+        'VIP',
+        'GPU',
+        'CPU',
+        'RAM',
+        'SSD',
+        'USA',
+        'UK',
+        'IDE',
+        'PR',
+        'API',
+        'UI',
+        'UX',
+        'LLM',
+        'CI/CD',
+      ]);
       return subject
         .split(/\s+/)
         .map(w => {
           const up = w.toUpperCase();
           if (acronyms.has(up)) return up;
+          if (w.toLowerCase() === 'saas') return 'SaaS';
           return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
         })
         .join(' ');
@@ -1091,6 +1145,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         postHashtags = [`#${brand.replace(/\s+/g, '')}`, '#LaptopLife', '#TechSetup', '#ProductivityGear', '#WorkFromAnywhere', '#TechInnovation', '#CreatorCommunity'];
         postMedia = 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=1080&auto=format&fit=crop&q=85';
       }
+    } else if (/\b(coding|code|coder|programmer|programming|developer|developers|devs|software engineer|software development|fullstack|frontend|backend|devops|github|git|ide|terminal|cursor|copilot|debugging|debugger|syntax|python|javascript|typescript|react|nextjs|api|backend agent|coding agent)\b/i.test(p)) {
+      // DOMAIN: Coding & Developer AI / Software Engineering
+      const devSubject = cleanSubject || 'AI Coding Agent';
+      if (isVariantRequest) {
+        postTitle = `${devSubject} (Variant 2): Modern Engineering Velocity 🚀⚡`;
+        postCaption = `Building software shouldn't feel like wrestling with legacy dependencies. 🚀 Meet ${devSubject}.\n\nBuilt for high-output engineering teams, founders, and solo hackers:\n\n✨ Intelligent context engine that grasps your full codebase architecture\n⚡ Instant generation of typed contracts, test suites, and documentation\n🔍 Automated vulnerability detection and memory leak profiling\n🛠️ Terminal-native CLI and IDE integration that keeps you in deep flow\n\nScale your output without scaling burnout. 💻\n\nWhat’s the most tedious part of your current dev stack? Share below! 👇`;
+        postHashtags = [`#${devSubject.replace(/[^a-zA-Z0-9]/g, '')}`, '#SoftwareEngineering', '#DeveloperTools', '#CodingAgent', '#FullStack', '#TechInnovation', '#BuildInPublic'];
+        postMedia = 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1080&auto=format&fit=crop&q=85';
+      } else {
+        postTitle = `${devSubject}: Powering 10x Developer Velocity 💻⚡`;
+        postCaption = `From prompt to production in seconds ⚡ Meet the new standard of engineering with ${devSubject}!\n\nImagine having a 24/7 senior pair programmer directly in your workspace:\n\n⚡ Generates clean, type-safe architecture & unit tests in milliseconds\n🐛 Auto-diagnoses complex stack traces and patches edge cases in real-time\n🚀 Performs instant code refactoring and automated PR reviews before you merge\n📦 Handles repetitive boilerplate so you can focus on high-impact system design\n\nStop wrestling with syntax. Build products that matter. 🚀\n\nHow is your engineering team leveraging AI in development today? Drop your favorite stack or prompt technique below! 👇`;
+        postHashtags = [`#${devSubject.replace(/[^a-zA-Z0-9]/g, '')}`, '#AICoding', '#DeveloperTools', '#CodingAgent', '#SoftwareEngineering', '#FullStack', '#TechInnovation', '#BuildInPublic', '#DevCommunity'];
+        postMedia = 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1080&auto=format&fit=crop&q=85';
+      }
     } else if (/eduactional|educational|education|learning|tutorial|course|study|student|learn|knowledge|tips|guide|infographic|lesson|skill/i.test(p)) {
       // DOMAIN: Educational & Learning
       const topic = cleanSubject || 'Daily Knowledge Drop';
@@ -1156,13 +1224,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       postCaption = 'Because our community deserves the best—enjoy an exclusive seasonal special! 🎁✨ Premium quality, crafted with care, available for a strictly limited window.\n\nDon’t miss out! Tap the link in bio to claim yours today! ⏳🛍️';
       postHashtags = ['#SpecialOffer', '#LimitedEdition', '#VIPAccess', '#FlashSale', '#ShopNow'];
       postMedia = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1080&auto=format&fit=crop&q=85';
-    } else if (/\b(ai|artificial intelligence|machine learning|saas|software|developer|coding|web dev|automation|bot|cyber)\b/i.test(p)) {
-      // DOMAIN: AI Software & SaaS (strictly software, hardware routed above)
-      const aiSubject = cleanSubject || 'Autonomous AI Workflows';
-      postTitle = `${aiSubject} 🤖⚡`;
-      postCaption = 'Why spend countless manual hours managing social channels when an autonomous AI team can research competitor angles, draft viral hooks, and schedule 24/7? 🚀✨\n\nWork smarter, build faster. Save this post & discover autonomous productivity! 📌';
-      postHashtags = ['#ArtificialIntelligence', '#Automation', '#FutureOfWork', '#TechStartup', '#CreatorEconomy', '#Innovation'];
-      postMedia = 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1080&auto=format&fit=crop&q=85';
+    } else if (/\b(social media agent|marketing agent|social media ai|content agent|growth agent|socialix|autonomous marketing|content team)\b/i.test(p)) {
+      // DOMAIN: Social Media & Marketing AI Agents
+      const agentSubject = cleanSubject || 'Autonomous AI Social Media Team';
+      postTitle = `${agentSubject}: 24/7 Social Media Growth 🤖📈`;
+      postCaption = `Why spend countless manual hours juggling social channels when an autonomous AI team works around the clock? 🚀✨\n\nMeet your always-on content engine with ${agentSubject}:\n\n🔍 Research Agent tracks live competitor trends, viral hooks, and hashtag momentum\n🎨 Creator Agent crafts platform-calibrated captions, visuals, and high-converting hooks\n⏰ Scheduler Agent predicts peak engagement windows and auto-queues via Zernio\n\nWork smarter, build faster, and scale your organic reach on autopilot. 📌\n\nReady to put your content pipeline on cruise control? Drop a '🚀' below or tap the link in bio!`;
+      postHashtags = ['#SocialMediaAgent', '#AIAgent', '#ContentAutomation', '#MarketingAI', '#FutureOfWork', '#CreatorEconomy'];
+      postMedia = 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1080&auto=format&fit=crop&q=85';
+    } else if (/\b(ai|artificial intelligence|machine learning|saas|software|automation|deep learning|llm|neural|robotics|generative ai|bot|cyber)\b/i.test(p)) {
+      // DOMAIN: General AI Software & SaaS Automation
+      const aiSubject = cleanSubject || 'Intelligent AI Automation';
+      postTitle = `${aiSubject}: Smarter Workflows, Faster Scale 🤖⚡`;
+      postCaption = `The future isn't about replacing humans—it's about augmenting human ingenuity with ${aiSubject}. 🧠⚡\n\nFrom real-time predictive intelligence to seamless autonomous workflows:\n\n⚡ Eliminate hours of repetitive friction and manual bottlenecks\n📈 Unlock high-velocity decision-making powered by intelligent models\n🌐 Scale your operations 24/7 with reliable, repeatable precision\n\nThe builders who embrace intelligent workflows today are defining tomorrow's industry leaders. 💡\n\nWhere is your team seeing the highest ROI with AI this year? Share your thoughts below! 👇`;
+      postHashtags = ['#ArtificialIntelligence', '#MachineLearning', '#AITools', '#TechInnovation', '#FutureOfWork', '#Automation', '#TechLeadership'];
+      postMedia = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080&auto=format&fit=crop&q=85';
     } else {
       // DOMAIN: Dynamic Intelligent Fallback for ANY custom topic/product
       const dynamicSubject = cleanSubject || (trimmed.length > 3 ? trimmed.slice(0, 32) : 'Signature Collection');
