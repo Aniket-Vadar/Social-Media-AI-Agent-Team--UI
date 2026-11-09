@@ -206,7 +206,7 @@ export default function SettingsPage() {
                   />
                 ) : (
                   <span className="text-xs font-mono text-gray-700 tracking-wider">
-                    •••••••••••••••••••••••••••••zr_live
+                    {apiKeyInput ? `${apiKeyInput.slice(0, 7)}•••••••••••••••••••••••••••••${apiKeyInput.slice(-4)}` : 'sk_2ac4•••••••••••••••••••••••••••••6b05'}
                   </span>
                 )}
               </div>

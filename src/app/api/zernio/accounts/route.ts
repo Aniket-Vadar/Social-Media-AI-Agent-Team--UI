@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Zernio } from '@zernio/node';
 
 export async function GET(req: NextRequest) {
   try {
@@ -7,20 +8,20 @@ export async function GET(req: NextRequest) {
       process.env.ZERNIO_API_KEY ||
       process.env.NEXT_PUBLIC_ZERNIO_API_KEY;
 
-    if (apiKey && !apiKey.includes('demo')) {
+    if (apiKey) {
       try {
-        const res = await fetch('https://zernio.com/api/v1/accounts', {
-          headers: { Authorization: `Bearer ${apiKey}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return NextResponse.json(data);
+        const client = new Zernio({ apiKey });
+        const res = await client.accounts.listAccounts().catch(() => null);
+        const liveAccounts = (res as any)?.data?.accounts;
+        if (Array.isArray(liveAccounts) && liveAccounts.length > 0) {
+          return NextResponse.json(liveAccounts);
         }
-      } catch {
-        // Fallback below
+      } catch (err) {
+        console.warn('Zernio SDK accounts note:', err);
       }
     }
 
+    // Default mock accounts if user has not yet connected social profiles on Zernio dashboard
     return NextResponse.json([
       {
         id: 'acc_ig_9921',
@@ -60,4 +61,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-

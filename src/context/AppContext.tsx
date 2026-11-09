@@ -144,7 +144,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [campaignChats, setCampaignChats] = useState<Record<string, ChatMessage[]>>({});
   const [activities, setActivities] = useState<UserActivity[]>([]);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>(initialConnectedAccounts);
-  const [zernioApiKey, setZernioApiKeyState] = useState('zr_live_a98f41398c2dfa9387e0Gmk=');
+  const [zernioApiKey, setZernioApiKeyState] = useState('sk_2ac4b59d4feb232a496994f1bd1e430504c8e96e7d4d58c4dd7d97b6f4746b05');
 
   const setZernioApiKey = (key: string) => {
     setZernioApiKeyState(key);
