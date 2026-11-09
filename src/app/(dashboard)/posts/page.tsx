@@ -177,16 +177,29 @@ export default function PostsPage() {
               className="bg-white rounded-3xl border border-gray-100 shadow-card hover:shadow-elevated transition-all duration-300 overflow-hidden flex flex-col group relative"
             >
               {/* Media Thumbnail Area */}
-              <div className="relative w-full aspect-[4/3] bg-gray-100 overflow-hidden cursor-pointer">
+              <div
+                onClick={() => setSelectedPostForDetail(post)}
+                className="relative w-full aspect-[4/3] bg-gray-950 overflow-hidden cursor-pointer flex items-center justify-center"
+              >
                 {post.mediaUrl ? (
-                  <Image
-                    src={post.mediaUrl}
-                    alt={post.title}
-                    fill
-                    unoptimized
-                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                    onClick={() => setSelectedPostForDetail(post)}
-                  />
+                  <>
+                    {/* Ambient backdrop */}
+                    <Image
+                      src={post.mediaUrl}
+                      alt=""
+                      fill
+                      unoptimized
+                      className="object-cover blur-xl opacity-35 scale-110 pointer-events-none"
+                    />
+                    {/* Uncropped full image */}
+                    <Image
+                      src={post.mediaUrl}
+                      alt={post.title}
+                      fill
+                      unoptimized
+                      className="object-contain relative z-10 group-hover:scale-105 transition-transform duration-500 p-1"
+                    />
+                  </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-400">
                     <Layers className="w-8 h-8" />

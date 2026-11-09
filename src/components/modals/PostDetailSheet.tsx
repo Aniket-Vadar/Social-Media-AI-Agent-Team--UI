@@ -65,14 +65,29 @@ export const PostDetailSheet: React.FC = () => {
           {/* Media Preview */}
           <div className="p-5 space-y-4">
             {post.mediaUrl && (
-              <div className="relative w-full aspect-square rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
-                <Image src={post.mediaUrl} alt={post.title} fill unoptimized className="object-cover" />
-                <div className="absolute top-3 left-3">
-                  <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-bold capitalize">
+              <div className="relative w-full aspect-[4/3] max-h-[380px] rounded-2xl overflow-hidden border border-gray-200 bg-gray-950 shadow-sm flex items-center justify-center">
+                {/* Ambient blurred backdrop to prevent black borders while maintaining aspect ratio */}
+                <Image
+                  src={post.mediaUrl}
+                  alt=""
+                  fill
+                  unoptimized
+                  className="object-cover blur-2xl opacity-40 scale-110 pointer-events-none"
+                />
+                {/* Uncropped full image */}
+                <Image
+                  src={post.mediaUrl}
+                  alt={post.title}
+                  fill
+                  unoptimized
+                  className="object-contain relative z-10 p-1"
+                />
+                <div className="absolute top-3 left-3 z-20">
+                  <span className="px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-white text-[10px] font-bold capitalize">
                     {post.status}
                   </span>
                 </div>
-                <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-gradient-to-tr from-amber-500 to-pink-600 text-white flex items-center justify-center shadow-md">
+                <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-gradient-to-tr from-amber-500 to-pink-600 text-white flex items-center justify-center shadow-md z-20">
                   <Instagram className="w-3.5 h-3.5" />
                 </div>
               </div>

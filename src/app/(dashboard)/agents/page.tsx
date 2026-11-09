@@ -24,6 +24,7 @@ import {
   Image as ImageIcon,
   X,
   Upload,
+  Eye,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { AgentId, Post } from '@/types';
@@ -85,6 +86,13 @@ export default function AgentsPage() {
         setSelectedPostForDetail(lastPostWithMedia);
         setEditingImage(lastPostWithMedia.mediaUrl);
         setIsImageEditorOpen(true);
+        return;
+      }
+    }
+    if (prompt.includes('View Post')) {
+      const targetPost = posts.find(p => p.status === 'pending_approval') || posts[0];
+      if (targetPost) {
+        setSelectedPostForDetail(targetPost);
         return;
       }
     }
@@ -407,21 +415,32 @@ export default function AgentsPage() {
 
                             {/* Post Preview with Approve/Edit/Reject actions */}
                             {msg.postPreview && (
-                              <div className="mt-3 p-3 bg-white rounded-2xl border border-gray-200 text-gray-800 space-y-2 shadow-xs">
-                                <div className="flex items-center gap-3">
+                              <div className="mt-3 p-3 bg-white rounded-2xl border border-gray-200 text-gray-800 space-y-2.5 shadow-xs">
+                                <div
+                                  onClick={() => {
+                                    if (msg.postPreview) {
+                                      const fullPost = posts.find(p => p.id === msg.postPreview?.id) || (msg.postPreview as Post);
+                                      setSelectedPostForDetail(fullPost);
+                                    }
+                                  }}
+                                  className="flex items-center gap-3 cursor-pointer group hover:opacity-95 transition-opacity"
+                                  title="Click to view full post details"
+                                >
                                   {msg.postPreview.mediaUrl && (
-                                    <div className="w-14 h-14 rounded-xl overflow-hidden relative flex-shrink-0">
+                                    <div className="w-14 h-14 rounded-xl overflow-hidden relative flex-shrink-0 bg-gray-950 border border-gray-200 flex items-center justify-center p-0.5">
                                       <Image
                                         src={msg.postPreview.mediaUrl}
                                         alt="Draft preview"
                                         fill
-                                        className="object-cover"
+                                        className="object-contain"
                                       />
                                     </div>
                                   )}
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                      <h5 className="font-bold text-xs truncate">{msg.postPreview.title}</h5>
+                                      <h5 className="font-bold text-xs truncate group-hover:text-brand-600 transition-colors">
+                                        {msg.postPreview.title}
+                                      </h5>
                                       <span
                                         className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
                                           msg.postPreview.status === 'scheduled'
@@ -438,7 +457,7 @@ export default function AgentsPage() {
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
                                   {msg.postPreview.status !== 'scheduled' ? (
                                     <button
                                       onClick={() => {
@@ -452,15 +471,31 @@ export default function AgentsPage() {
                                           );
                                         }
                                       }}
-                                      className="flex-1 py-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-[11px] transition-colors"
+                                      className="flex-1 min-w-[120px] py-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-[11px] transition-colors shadow-xs"
                                     >
                                       Approve & Schedule
                                     </button>
                                   ) : (
-                                    <div className="flex-1 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold text-[11px] text-center border border-emerald-200">
+                                    <div className="flex-1 min-w-[120px] py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold text-[11px] text-center border border-emerald-200">
                                       ✓ Scheduled on Zernio
                                     </div>
                                   )}
+
+                                  {/* View Post Button */}
+                                  <button
+                                    onClick={() => {
+                                      if (msg.postPreview) {
+                                        const fullPost = posts.find(p => p.id === msg.postPreview?.id) || (msg.postPreview as Post);
+                                        setSelectedPostForDetail(fullPost);
+                                      }
+                                    }}
+                                    className="px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50/80 hover:bg-gray-100 text-gray-700 font-semibold text-[11px] transition-colors flex items-center gap-1.5 shadow-2xs"
+                                    title="View full post copy, hashtags & visual asset"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-gray-600" />
+                                    <span>View Post</span>
+                                  </button>
+
                                   <button
                                     onClick={() => {
                                       if (msg.postPreview) {

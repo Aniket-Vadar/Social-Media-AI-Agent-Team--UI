@@ -1007,9 +1007,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       cleaned = cleaned.replace(/^(can you |could you |please |hey |hi |hello |agent |team |socialix )+/i, '');
       cleaned = cleaned.replace(
-        /^(create|generate|write|draft|make|post|publish|design|build|produce)\s+(a |an |one |new |viral |high converting |engaging |social media |instagram |linkedin |facebook |x |twitter )*(post|content|caption|creative|reel|update|ad|copy|campaign|graphic)*\s*(for|about|on|regarding|around|of|centered on)*\s*/i,
+        /^(create|creat|generate|genrate|genarate|write|writ|draft|make|mak|post|publish|design|build|produce)\s+(a |an |one |new |viral |high converting |engaging |social media |instagram |linkedin |facebook |x |twitter )*(post|content|caption|creative|reel|update|ad|copy|campaign|graphic)*\s*(for|about|on|regarding|around|of|centered on)*\s*/i,
         ''
       );
+      // Secondary cleanup for nested command phrasing like "a laptop post for" or "post for"
+      cleaned = cleaned.replace(/^(a |an |one )*(laptop |phone |product |brand )*(post|ad|caption|creative)\s+(for|about|on)\s*/i, '');
       cleaned = cleaned.replace(/\s+(with|using|in|for)\s+(good|viral|creative|high converting|best|trending)*\s*(hashtags|caption|image|media|photo|visuals?).*$/i, '');
       cleaned = cleaned.replace(/\s+(post|realted|related|content|creative|ad)$/i, '');
       return cleaned.trim();
@@ -1350,6 +1352,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           postPreview: createdPost,
           quickReplies: [
+            '👁️ View Post',
             '✨ Open in AI Image Studio',
             '✓ Approve & Schedule',
             '✍️ Generate Another Variant',
