@@ -59,8 +59,8 @@ export const initialAgents: Agent[] = [
     id: 'scheduler',
     name: 'Scheduler Agent',
     role: 'Timing & Publishing Specialist',
-    shortDesc: 'Plans the best time to post & schedules through Blotato',
-    description: 'Hi! I\'m your Scheduler Agent. I plan the best time to post and schedule posts through Blotato. I take my tasks from the Master Agent, but you can ask me anything about timing and queues.',
+    shortDesc: 'Plans the best time to post & schedules through Zernio',
+    description: 'Hi! I\'m your Scheduler Agent. I plan the best time to post and schedule posts through Zernio. I take my tasks from the Master Agent, but you can ask me anything about timing and queues.',
     color: '#10B981',
     badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     avatar: '/avatars/scheduler.png',
@@ -155,6 +155,8 @@ export const initialPosts: Post[] = [
     scheduledDisplay: 'Tue, Nov 10, 10:00 AM EST',
     createdBy: 'agent',
     blotatoSynced: true,
+    zernioSynced: true,
+    zernioPostId: 'zr_post_1001',
     engagement: {
       likes: 142,
       comments: 18,
@@ -175,6 +177,8 @@ export const initialPosts: Post[] = [
     scheduledDisplay: 'Thu, Nov 12, 2:00 PM EST',
     createdBy: 'agent',
     blotatoSynced: true,
+    zernioSynced: true,
+    zernioPostId: 'zr_post_1002',
     engagement: {
       likes: 98,
       comments: 12,
@@ -195,6 +199,7 @@ export const initialPosts: Post[] = [
     scheduledDisplay: 'Sun, Nov 15, 11:00 AM EST',
     createdBy: 'agent',
     blotatoSynced: false,
+    zernioSynced: false,
   },
   {
     id: 'post-4',
@@ -210,6 +215,8 @@ export const initialPosts: Post[] = [
     scheduledDisplay: 'Sun, Nov 8, 9:00 AM EST',
     createdBy: 'agent',
     blotatoSynced: true,
+    zernioSynced: true,
+    zernioPostId: 'zr_post_1003',
     engagement: {
       likes: 312,
       comments: 42,
@@ -230,6 +237,8 @@ export const initialPosts: Post[] = [
     scheduledDisplay: 'Wed, Nov 18, 1:00 PM EST',
     createdBy: 'agent',
     blotatoSynced: true,
+    zernioSynced: true,
+    zernioPostId: 'zr_post_1004',
     engagement: {
       likes: 184,
       comments: 29,
@@ -259,7 +268,7 @@ export const initialActivePlan: AgentPlan = {
       id: 'step-2',
       agentId: 'scheduler',
       title: 'Schedule the 2 Instagram posts',
-      instruction: 'Compute engagement-optimized slots for Friday and Saturday at 8:00 AM EDT, verify Blotato connection, and queue.',
+      instruction: 'Compute engagement-optimized slots for Friday and Saturday at 8:00 AM EDT, verify Zernio connection, and queue.',
       status: 'scheduled',
       subtext: 'Scheduler Agent · after step 1',
     },
@@ -325,7 +334,7 @@ export const initialConnectedAccounts: ConnectedAccount[] = [
     accountHandle: 'Not connected',
     displayName: 'TikTok',
     connected: false,
-    checkedAgo: 'Connect in Blotato',
+    checkedAgo: 'Connect in Zernio',
   },
   {
     id: 'acc-3',
@@ -333,7 +342,7 @@ export const initialConnectedAccounts: ConnectedAccount[] = [
     accountHandle: 'Not connected - videos & Shorts',
     displayName: 'YouTube',
     connected: false,
-    checkedAgo: 'Connect in Blotato',
+    checkedAgo: 'Connect in Zernio',
   },
 ];
 

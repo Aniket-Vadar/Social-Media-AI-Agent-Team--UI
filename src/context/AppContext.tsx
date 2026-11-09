@@ -23,6 +23,7 @@ import {
 } from '@/data/mockData';
 import { createClient } from '@/lib/supabase/client';
 import { backendApi, BACKEND_URL } from '@/lib/api/backend';
+import { zernioApi } from '@/lib/api/zernio';
 import { AppNotification, ToastContainer } from '@/components/ui/ToastNotification';
 
 export interface AuthUser {
@@ -69,7 +70,7 @@ interface AppContextType {
   
   // Posts
   posts: Post[];
-  addPost: (post: Omit<Post, 'id' | 'campaignId' | 'createdBy' | 'blotatoSynced'>) => Post;
+  addPost: (post: Omit<Post, 'id' | 'campaignId' | 'createdBy' | 'blotatoSynced' | 'zernioSynced'>) => Post;
   updatePost: (id: string, updates: Partial<Post>) => void;
   deletePost: (id: string) => void;
   reschedulePost: (id: string, newDate: string, newDisplay: string) => void;
@@ -91,6 +92,8 @@ interface AppContextType {
   // Accounts / Settings
   accounts: ConnectedAccount[];
   toggleAccountConnection: (platform: string) => void;
+  zernioApiKey: string;
+  setZernioApiKey: (key: string) => void;
   blotatoApiKey: string;
   setBlotatoApiKey: (key: string) => void;
   
@@ -141,7 +144,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [campaignChats, setCampaignChats] = useState<Record<string, ChatMessage[]>>({});
   const [activities, setActivities] = useState<UserActivity[]>([]);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>(initialConnectedAccounts);
-  const [blotatoApiKey, setBlotatoApiKey] = useState('blot_live_a98f41398c2dfa9387e0Gmk=');
+  const [zernioApiKey, setZernioApiKeyState] = useState('zr_live_a98f41398c2dfa9387e0Gmk=');
+
+  const setZernioApiKey = (key: string) => {
+    setZernioApiKeyState(key);
+    zernioApi.setApiKey(key);
+  };
 
   // Modals state
   const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
@@ -780,18 +788,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const addPost = (postData: Omit<Post, 'id' | 'campaignId' | 'createdBy' | 'blotatoSynced'>): Post => {
+  const addPost = (postData: Omit<Post, 'id' | 'campaignId' | 'createdBy' | 'blotatoSynced' | 'zernioSynced'>): Post => {
     const newPost: Post = {
       ...postData,
       id: `post-${Date.now()}`,
       campaignId: activeCampaign.id || 'camp-default',
       createdBy: 'user',
       blotatoSynced: true,
+      zernioSynced: true,
     };
     const nextPosts = [newPost, ...posts];
     setPosts(nextPosts);
     logActivity('post_created', `Post created: "${newPost.title}"`, `Created post for ${newPost.platform}.`, '📝');
     persistWorkspace({ posts: nextPosts });
+
+    // Sync with Zernio multi-platform social API
+    zernioApi
+      .createPost({
+        content: newPost.caption,
+        mediaItems: newPost.mediaUrl ? [{ type: 'image', url: newPost.mediaUrl }] : undefined,
+        platforms: [{ platform: newPost.platform, accountId: `acc_${newPost.platform}` }],
+        scheduledFor: newPost.scheduledAt,
+        publishNow: newPost.status === 'published',
+      })
+      .then(res => {
+        if (res?.id) {
+          setPosts(current =>
+            current.map(p => (p.id === newPost.id ? { ...p, zernioPostId: res.id, zernioSynced: true } : p))
+          );
+        }
+      })
+      .catch(err => console.warn('Zernio post creation deferred:', err));
 
     // Sync with production FastAPI backend
     backendApi.createPost({
@@ -806,7 +833,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Backend post create deferred:', err);
     });
 
-    showSuccess(`Post "${newPost.title}" ${newPost.status === 'scheduled' ? 'scheduled' : 'saved as draft'}!`);
+    showSuccess(`Post "${newPost.title}" ${newPost.status === 'scheduled' ? 'scheduled on Zernio' : 'saved as draft'}!`);
     return newPost;
   };
 
@@ -816,7 +843,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     persistWorkspace({ posts: nextPosts });
 
     if (updates.status === 'scheduled' || updates.status === 'published') {
-      showSuccess('Post approved and scheduled!');
+      showSuccess('Post approved and scheduled on Zernio!');
+      const targetPost = nextPosts.find(p => p.id === id);
+      if (targetPost) {
+        zernioApi
+          .createPost({
+            content: targetPost.caption,
+            mediaItems: targetPost.mediaUrl ? [{ type: 'image', url: targetPost.mediaUrl }] : undefined,
+            platforms: [{ platform: targetPost.platform, accountId: `acc_${targetPost.platform}` }],
+            scheduledFor: targetPost.scheduledAt,
+            publishNow: updates.status === 'published',
+          })
+          .then(res => {
+            if (res?.id) {
+              setPosts(current =>
+                current.map(p => (p.id === id ? { ...p, zernioSynced: true, zernioPostId: res.id } : p))
+              );
+            }
+          })
+          .catch(err => console.warn('Zernio scheduling:', err));
+      }
       backendApi.approvePost(id, { caption: updates.caption, scheduled_at: updates.scheduledAt }).catch(() => {});
     }
   };
@@ -902,18 +948,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTimeout(() => {
         const pendingPost = posts.find(p => p.status === 'pending_approval') || posts[0];
         if (pendingPost) {
-          updatePost(pendingPost.id, { status: 'scheduled', blotatoSynced: true });
+          updatePost(pendingPost.id, { status: 'scheduled', blotatoSynced: true, zernioSynced: true });
           const confirmMsg: ChatMessage = {
             id: `msg-${Date.now()}`,
             sender: 'master',
             role: 'assistant',
-            content: `✅ **Post Approved!**\n\n"${pendingPost.title}" has been successfully approved and scheduled on **Blotato** for publication.\n\nYou can view it live in your **Posts** grid or manage its slot in the **Calendar** view.`,
+            content: `✅ **Post Approved!**\n\n"${pendingPost.title}" has been successfully approved and scheduled on **Zernio** for publication.\n\nYou can view it live in your **Posts** grid or manage its slot in the **Calendar** view.`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           };
           const updated = [...nextChats, confirmMsg];
           saveUpdatedChats(updated);
-          updateAgentStatus('master', 'idle', 'Post approved and synced with Blotato');
-          showSuccess('Post approved and scheduled!');
+          updateAgentStatus('master', 'idle', 'Post approved and synced with Zernio');
+          showSuccess('Post approved and scheduled on Zernio!');
         } else {
           const infoMsg: ChatMessage = {
             id: `msg-${Date.now()}`,
@@ -941,7 +987,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: `msg-${Date.now()}`,
           sender: 'master',
           role: 'assistant',
-          content: `Hi! I'm your Master Agent 🪄 coordinating your AI creative team:\n\n• **Creator Agent**: Ready to draft platform-native captions, curated hashtags, and image designs.\n• **Scheduler Agent**: Analyzing highest engagement windows to queue posts via Blotato.\n• **Research Agent**: Tracking live competitor trends and viral hooks.\n\nTo create a post, tell me what you need (e.g. *"create social media post for HP laptop"*, *"create educational post"*) or **upload a reference image** below and the team will craft custom copy and visual assets!`,
+          content: `Hi! I'm your Master Agent 🪄 coordinating your AI creative team:\n\n• **Creator Agent**: Ready to draft platform-native captions, curated hashtags, and image designs.\n• **Scheduler Agent**: Analyzing highest engagement windows to queue posts via Zernio.\n• **Research Agent**: Tracking live competitor trends and viral hooks.\n\nTo create a post, tell me what you need (e.g. *"create social media post for HP laptop"*, *"create educational post"*) or **upload a reference image** below and the team will craft custom copy and visual assets!`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         const updated = [...nextChats, reply];
@@ -1147,8 +1193,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         {
           id: `step-${Date.now()}-2`,
           agentId: 'scheduler',
-          title: 'Compute peak engagement slot & queue on Blotato',
-          instruction: 'Select highest reach window for connected accounts.',
+          title: 'Compute peak engagement slot & queue on Zernio',
+          instruction: 'Select highest reach window for connected accounts and queue via Zernio API.',
           status: 'scheduled',
           subtext: 'Scheduler Agent · waiting on creator draft',
         },
@@ -1172,7 +1218,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       role: 'assistant',
       content: attachedImage
         ? `📸 **Reference Image Detected!**\n- Creator Agent is analyzing composition, lighting, and brand tone from your uploaded visual.\n- Formulating platform-optimized copy, hashtag strategy, and peak engagement slot.\n\nI have queued Plan #${planNumber}. Watch real-time execution below:`
-        : `Planned:\n- Creator Agent is formulating platform-specific captions and asset prompts for **${displaySubject}**.\n- Scheduler Agent will analyze peak audience engagement slots and sync via Blotato.\n\nI have queued Plan #${planNumber}. Watch real-time execution below:`,
+        : `Planned:\n- Creator Agent is formulating platform-specific captions and asset prompts for **${displaySubject}**.\n- Scheduler Agent will analyze peak audience engagement slots and sync via Zernio.\n\nI have queued Plan #${planNumber}. Watch real-time execution below:`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       plan: newPlan,
     };
@@ -1238,7 +1284,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
 
         setActivePlan(step2DonePlan);
-        updateAgentStatus('scheduler', 'idle', 'Scheduled post on Blotato');
+        updateAgentStatus('scheduler', 'idle', 'Scheduled post on Zernio');
         updateAgentStatus('master', 'idle', 'Ready for next instruction');
 
         const createdPost: Post = {
@@ -1253,6 +1299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           scheduledAt: new Date(Date.now() + 86400000).toISOString(),
           scheduledDisplay: 'Tomorrow at 10:00 AM',
           createdBy: 'agent',
+          zernioSynced: true,
           blotatoSynced: true,
           engagement: { likes: 0, comments: 0, shares: 0, reach: 0 },
         };
@@ -1339,7 +1386,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return {
             ...acc,
             connected: next,
-            checkedAgo: next ? 'Connected just now' : 'Connect in Blotato',
+            checkedAgo: next ? 'Connected just now' : 'Connect in Zernio',
           };
         }
         return acc;
@@ -1381,8 +1428,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetToFresh,
         accounts,
         toggleAccountConnection,
-        blotatoApiKey,
-        setBlotatoApiKey,
+        zernioApiKey,
+        setZernioApiKey,
+        blotatoApiKey: zernioApiKey,
+        setBlotatoApiKey: setZernioApiKey,
         isCreateCampaignOpen,
         setIsCreateCampaignOpen,
         isCreatePostOpen,

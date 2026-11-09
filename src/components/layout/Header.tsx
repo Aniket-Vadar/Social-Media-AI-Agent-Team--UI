@@ -120,7 +120,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
                       <CheckCircle2 className="w-3.5 h-3.5" />
                     </div>
                     <div className="flex-1 text-xs">
-                      <p className="font-semibold text-gray-800">Blotato Synced</p>
+                      <p className="font-semibold text-gray-800">Zernio Synced</p>
                       <p className="text-gray-500 text-[11px] mt-0.5">Instagram account connected successfully.</p>
                       <span className="text-[10px] text-gray-400 mt-1 block">1h ago</span>
                     </div>

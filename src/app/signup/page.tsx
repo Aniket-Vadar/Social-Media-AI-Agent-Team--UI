@@ -58,7 +58,7 @@ function SignupForm() {
           <div className="w-5 h-5 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
             <Zap className="w-3 h-3" />
           </div>
-          <span>Automatic Blotato and Instagram integration</span>
+          <span>Automatic Zernio and Instagram integration</span>
         </div>
         <div className="flex items-center gap-2.5">
           <div className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">

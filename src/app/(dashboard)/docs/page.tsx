@@ -144,7 +144,7 @@ const API_ENDPOINTS: EndpointItem[] = [
     path: '/api/v1/posts',
     tag: 'Posts',
     summary: 'Create Post',
-    description: 'Create a new post manually or schedule via Blotato integration.',
+    description: 'Create a new post manually or schedule via Zernio multi-platform integration.',
     authRequired: true,
   },
   {
@@ -193,7 +193,7 @@ const API_ENDPOINTS: EndpointItem[] = [
     path: '/api/v1/social-accounts',
     tag: 'Social Accounts',
     summary: 'Connect Social Account',
-    description: 'Register a Blotato-connected social channel.',
+    description: 'Register a Zernio-connected social channel.',
     authRequired: true,
   },
   // Calendar & Analytics

@@ -356,7 +356,7 @@ export const CreatePostModal: React.FC = () => {
 
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 border border-gray-100 text-[11px] text-gray-500">
                 <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Publishes to Instagram from your Blotato calendar when scheduled.</span>
+                <span>Publishes to Instagram from your Zernio calendar when scheduled.</span>
               </div>
             </div>
           </div>

@@ -92,7 +92,7 @@ export default function AgentsPage() {
       const pendingPost = posts.find(p => p.status === 'pending_approval') || posts[0];
       if (pendingPost) {
         updatePost(pendingPost.id, { status: 'scheduled' });
-        showSuccess(`Post "${pendingPost.title}" approved & scheduled on Blotato!`);
+        showSuccess(`Post "${pendingPost.title}" approved & scheduled on Zernio!`);
         return;
       }
     }
@@ -447,7 +447,7 @@ export default function AgentsPage() {
                                           logActivity(
                                             'post_scheduled',
                                             `Post Approved: "${msg.postPreview.title}"`,
-                                            'Scheduled for publication via Blotato.',
+                                            'Scheduled for publication via Zernio.',
                                             '✅'
                                           );
                                         }
@@ -458,7 +458,7 @@ export default function AgentsPage() {
                                     </button>
                                   ) : (
                                     <div className="flex-1 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold text-[11px] text-center border border-emerald-200">
-                                      ✓ Scheduled on Blotato
+                                      ✓ Scheduled on Zernio
                                     </div>
                                   )}
                                   <button
@@ -723,8 +723,8 @@ export default function AgentsPage() {
                       <label className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 bg-gray-50 cursor-pointer">
                         <input type="checkbox" defaultChecked className="rounded text-brand-500 focus:ring-brand-500" />
                         <div>
-                          <div className="font-semibold text-gray-900">Blotato API Scheduling</div>
-                          <div className="text-[11px] text-gray-400">Schedule posts directly into social calendar</div>
+                          <div className="font-semibold text-gray-900">Zernio API Multi-Platform Scheduling</div>
+                          <div className="text-[11px] text-gray-400">Schedule posts directly into social calendar via /v1/posts</div>
                         </div>
                       </label>
                     </div>

@@ -36,9 +36,9 @@ An AI-powered social media management SaaS where a team of autonomous AI agents 
 - **Analytics & Growth Dashboard**:
   - 4 Key KPI cards: Posts published, Total views, 100% publishing success rate, and Estimated time saved.
   - Daily posting volume bar chart and engagement metrics.
-- **Settings & Blotato Integrations**:
-  - Blotato API key configuration with masked key input.
-  - Connected account cards for Instagram, TikTok, and YouTube.
+- **Settings & Zernio Integrations**:
+  - Zernio API key configuration with masked key input and live multi-platform publishing (`https://zernio.com`).
+  - Connected account cards for Instagram, TikTok, LinkedIn, and YouTube.
   - **Human-in-the-Loop Approval Workflow** toggles ("Require approval" vs. "Auto-publish").
 - **Campaign Switcher & Onboarding Wizard**:
   - Multi-campaign brand switcher in the sidebar.

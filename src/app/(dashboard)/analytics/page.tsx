@@ -282,7 +282,7 @@ export default function AnalyticsPage() {
 
           <div className="flex items-center justify-between text-xs text-gray-400 px-1">
             <span>Direct platform analytics integration</span>
-            <span className="text-brand-600 font-semibold">Blotato real-time sync</span>
+            <span className="text-rose-600 font-semibold">Zernio real-time sync</span>
           </div>
         </div>
       </div>

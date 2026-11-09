@@ -59,7 +59,7 @@ function LoginForm() {
           <div className="w-5 h-5 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
             <Zap className="w-3 h-3" />
           </div>
-          <span>Automated Multi-Platform Blotato Publishing</span>
+          <span>Automated Multi-Platform Zernio Publishing</span>
         </div>
         <div className="flex items-center gap-2.5">
           <div className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">

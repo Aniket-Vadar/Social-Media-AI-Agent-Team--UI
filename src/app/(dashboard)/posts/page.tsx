@@ -305,10 +305,10 @@ export default function PostsPage() {
                     {post.caption}
                   </p>
 
-                  {/* Blotato Publishing Status */}
+                  {/* Zernio Publishing Status */}
                   <div className="flex items-center gap-1.5 text-[11px] text-gray-500 pt-1">
-                    <span className="w-2 h-2 rounded-full bg-pink-500" />
-                    <span>Scheduled in Blotato</span>
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>Scheduled in Zernio</span>
                   </div>
                 </div>
 

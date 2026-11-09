@@ -42,7 +42,7 @@ export const CommandPalette: React.FC = () => {
     { label: 'Posts Library', desc: 'View drafts, scheduled and published posts', path: '/posts', icon: Layers },
     { label: 'Content Calendar', desc: 'Plan & reschedule monthly/weekly posts', path: '/calendar', icon: Calendar },
     { label: 'Analytics Dashboard', desc: 'KPI cards, reach & daily activity metrics', path: '/analytics', icon: BarChart3 },
-    { label: 'Settings & Integrations', desc: 'Blotato API key & connected social accounts', path: '/settings', icon: Settings },
+    { label: 'Settings & Integrations', desc: 'Zernio API key & connected social accounts', path: '/settings', icon: Settings },
   ];
 
   const filteredNav = navItems.filter(item =>

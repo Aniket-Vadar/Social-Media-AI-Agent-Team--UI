@@ -56,7 +56,9 @@ export interface Post {
   scheduledDisplay: string;
   publishedAt?: string;
   createdBy: 'agent' | 'user';
-  blotatoSynced: boolean;
+  blotatoSynced?: boolean;
+  zernioSynced: boolean;
+  zernioPostId?: string;
   engagement?: {
     likes: number;
     comments: number;
@@ -105,6 +107,7 @@ export interface ConnectedAccount {
   connected: boolean;
   avatarUrl?: string;
   checkedAgo?: string;
+  zernioAccountId?: string;
 }
 
 export interface AnalyticsMetric {

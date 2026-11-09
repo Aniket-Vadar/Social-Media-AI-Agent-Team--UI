@@ -38,15 +38,15 @@ export default function SettingsPage() {
     resetToFresh,
     accounts,
     toggleAccountConnection,
-    blotatoApiKey,
-    setBlotatoApiKey,
+    zernioApiKey,
+    setZernioApiKey,
     activeCampaign,
     backendStatus,
     refreshBackendStatus,
   } = useApp();
 
   const [isReplacingKey, setIsReplacingKey] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(blotatoApiKey);
+  const [apiKeyInput, setApiKeyInput] = useState(zernioApiKey);
   const [approvalMode, setApprovalMode] = useState<'manual' | 'auto'>('manual');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -58,7 +58,7 @@ export default function SettingsPage() {
   };
 
   const handleSaveKey = () => {
-    setBlotatoApiKey(apiKeyInput);
+    setZernioApiKey(apiKeyInput);
     setIsReplacingKey(false);
   };
 
@@ -156,27 +156,40 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Blotato Card (Matches ref 18) */}
+          {/* Zernio Card (Replaces Blotato - Matches user Zernio studio screenshot) */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-6">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-indigo-100">
-                  <Link2 className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-red-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-rose-100">
+                  <span className="font-black text-sm tracking-tighter">zr</span>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm text-gray-900">Blotato</h3>
+                    <h3 className="font-extrabold text-base text-gray-900 tracking-tight flex items-center gap-1.5">
+                      <span className="text-red-600">zernio</span>
+                      <span className="text-gray-400 font-normal text-xs">/v1/posts</span>
+                    </h3>
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Connected
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 leading-relaxed max-w-xl">
-                    Publishes and schedules your posts on Instagram, TikTok and YouTube, and lets the Scheduler
-                    Agent post for you. Each person uses their own Blotato account.
+                    Unified social publishing infrastructure across Instagram, TikTok, LinkedIn, YouTube, and WhatsApp.
+                    Scheduler Agent automatically calculates peak engagement slots and schedules directly via Zernio API.
                   </p>
                 </div>
               </div>
+
+              <a
+                href="https://zernio.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden sm:flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700"
+              >
+                <span>zernio.com</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
 
             {/* API Key Box */}
@@ -188,12 +201,12 @@ export default function SettingsPage() {
                     type="text"
                     value={apiKeyInput}
                     onChange={e => setApiKeyInput(e.target.value)}
-                    placeholder="Enter Blotato API Key"
-                    className="w-full bg-white px-3 py-1.5 rounded-xl border border-gray-300 text-xs text-gray-800 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    placeholder="Enter Zernio API Key (e.g. zr_live_...)"
+                    className="w-full bg-white px-3 py-1.5 rounded-xl border border-gray-300 text-xs text-gray-800 font-mono focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />
                 ) : (
                   <span className="text-xs font-mono text-gray-700 tracking-wider">
-                    •••••••••••••••••••••••••••••Gmk=
+                    •••••••••••••••••••••••••••••zr_live
                   </span>
                 )}
               </div>
@@ -202,7 +215,7 @@ export default function SettingsPage() {
                 {isReplacingKey ? (
                   <button
                     onClick={handleSaveKey}
-                    className="px-3 py-1.5 rounded-xl bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
+                    className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors shadow-xs"
                   >
                     Save key
                   </button>
@@ -215,7 +228,7 @@ export default function SettingsPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => alert('Disconnected Blotato integration')}
+                  onClick={() => alert('Disconnected Zernio integration')}
                   className="px-3 py-1.5 rounded-xl text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
                 >
                   Disconnect
@@ -223,19 +236,19 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Connected Accounts Sub-Section (Matches ref 18) */}
+            {/* Connected Accounts Sub-Section */}
             <div className="space-y-4 pt-2 border-t border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-bold text-gray-800">Connected accounts</h4>
-                  <span className="text-[11px] text-gray-400">Checked 1 day ago</span>
+                  <span className="text-[11px] text-gray-400">Synced via Zernio connections</span>
                 </div>
                 <button
                   onClick={handleRefreshAccounts}
                   disabled={isRefreshing}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-brand-600' : ''}`} />
+                  <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-rose-600' : ''}`} />
                   <span>Refresh</span>
                 </button>
               </div>
@@ -250,7 +263,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <h5 className="font-bold text-xs text-gray-900">Instagram</h5>
-                      <span className="text-[10px] text-gray-400 font-medium">1 account</span>
+                      <span className="text-[10px] text-emerald-600 font-semibold">Connected</span>
                     </div>
                   </div>
 
@@ -279,9 +292,9 @@ export default function SettingsPage() {
 
                   <button
                     onClick={() => toggleAccountConnection('tiktok')}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors border border-brand-100"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors border border-rose-100"
                   >
-                    <span>Connect in Blotato</span>
+                    <span>Connect in Zernio</span>
                     <ExternalLink className="w-3 h-3" />
                   </button>
                 </div>
@@ -300,9 +313,9 @@ export default function SettingsPage() {
 
                   <button
                     onClick={() => toggleAccountConnection('youtube')}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors border border-brand-100"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors border border-rose-100"
                   >
-                    <span>Connect in Blotato</span>
+                    <span>Connect in Zernio</span>
                     <ExternalLink className="w-3 h-3" />
                   </button>
                 </div>
