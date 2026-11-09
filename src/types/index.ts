@@ -91,6 +91,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
+  attachedImage?: string; // User-uploaded reference image
   plan?: AgentPlan;
   postPreview?: Partial<Post>;
   quickReplies?: string[];

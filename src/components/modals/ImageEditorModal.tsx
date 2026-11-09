@@ -20,6 +20,9 @@ import {
   Palette,
   Eye,
   CheckCircle2,
+  Upload,
+  Image as ImageIcon,
+  Plus,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { backendApi } from '@/lib/api/backend';
@@ -39,14 +42,18 @@ export const ImageEditorModal: React.FC = () => {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const sourceImageRef = useRef<HTMLImageElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Active loaded image element in React state so renders are 100% reactive
+  const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
+  const [imageLoadError, setImageLoadError] = useState(false);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'magic' | 'crop' | 'adjust' | 'text'>('magic');
 
   // Upscale & Resolution State
   const [upscaleFactor, setUpscaleFactor] = useState<1 | 2 | 4>(1);
-  const [resolution, setResolution] = useState<{ width: number; height: number }>({ width: 800, height: 800 });
+  const [resolution, setResolution] = useState<{ width: number; height: number }>({ width: 1080, height: 1080 });
 
   // Crop & Aspect Ratio State
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '4:5' | '9:16' | '16:9' | 'orig'>('1:1');
@@ -80,44 +87,25 @@ export const ImageEditorModal: React.FC = () => {
   const [history, setHistory] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-  // 1. Load source image into memory
-  useEffect(() => {
-    if (!isImageEditorOpen || !editingImage) return;
-
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      sourceImageRef.current = img;
-      setResolution({ width: img.naturalWidth || 800, height: img.naturalHeight || 800 });
-      // Reset state for new image
-      setUpscaleFactor(1);
-      setAspectRatio('1:1');
-      setCropZoom(1);
-      setCropPanX(0);
-      setCropPanY(0);
-      setBrightness(100);
-      setContrast(100);
-      setSaturation(100);
-      setWarmth(0);
-      setSharpness(0);
-      setVignette(0);
-      setActiveFilter(null);
-      setOverlayText('');
-      setHistory([editingImage]);
-    };
-    img.onerror = () => {
-      // Fallback if crossOrigin blocked or file broken
-      const fallback = new window.Image();
-      fallback.onload = () => {
-        sourceImageRef.current = fallback;
-        setResolution({ width: fallback.naturalWidth || 800, height: fallback.naturalHeight || 800 });
-        setHistory([editingImage]);
-      };
-      fallback.src = editingImage;
-    };
-    img.src = editingImage;
-  }, [isImageEditorOpen, editingImage]);
+  // Sample Presets for instant 1-click photo testing
+  const samplePresets = [
+    { name: 'Artisan Coffee', url: '/images/coffee-latte.jpg' },
+    { name: 'Creative Workspace', url: '/images/coffee-work.jpg' },
+    {
+      name: 'Mobile & Tech',
+      url: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1080&auto=format&fit=crop&q=85',
+    },
+    {
+      name: 'Modern Office',
+      url: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1080&auto=format&fit=crop&q=85',
+    },
+    {
+      name: 'Curated Fashion',
+      url: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1080&auto=format&fit=crop&q=85',
+    },
+  ];
 
   // Helper: Fast 3x3 convolution sharpening filter applied to raw image data
   const applySharpenFilter = (ctx: CanvasRenderingContext2D, width: number, height: number, strength: number) => {
@@ -128,7 +116,6 @@ export const ImageEditorModal: React.FC = () => {
       const output = ctx.createImageData(width, height);
       const outData = output.data;
 
-      // 3x3 Sharpen Kernel
       const w = 0.22 * (strength / 100);
       const center = 1 + 4 * w;
 
@@ -150,7 +137,7 @@ export const ImageEditorModal: React.FC = () => {
       }
       ctx.putImageData(output, 0, 0);
     } catch {
-      // Fallback gracefully if security prevents getImageData
+      // Graceful fallback if security sandbox isolates pixel data
     }
   };
 
@@ -177,177 +164,255 @@ export const ImageEditorModal: React.FC = () => {
   };
 
   // 2. Render Pipeline onto Canvas
-  const renderCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    const img = sourceImageRef.current;
-    if (!canvas || !img || !img.complete) return;
+  const renderCanvas = useCallback(
+    (explicitImg?: HTMLImageElement | null) => {
+      const canvas = canvasRef.current;
+      const img = explicitImg || imageElement;
+      if (!canvas || !img || !img.complete || img.naturalWidth === 0) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    // Determine target canvas dimensions based on aspect ratio & upscale factor
-    let baseW = 1080;
-    let baseH = 1080;
+      // Determine target canvas dimensions based on aspect ratio & upscale factor
+      let baseW = 1080;
+      let baseH = 1080;
 
-    if (aspectRatio === '1:1') {
-      baseW = 1080;
-      baseH = 1080;
-    } else if (aspectRatio === '4:5') {
-      baseW = 1080;
-      baseH = 1350;
-    } else if (aspectRatio === '9:16') {
-      baseW = 1080;
-      baseH = 1920;
-    } else if (aspectRatio === '16:9') {
-      baseW = 1920;
-      baseH = 1080;
-    } else if (aspectRatio === 'orig') {
-      baseW = img.naturalWidth || 1080;
-      baseH = img.naturalHeight || 1080;
-    }
-
-    const targetW = baseW * upscaleFactor;
-    const targetH = baseH * upscaleFactor;
-
-    if (canvas.width !== targetW || canvas.height !== targetH) {
-      canvas.width = targetW;
-      canvas.height = targetH;
-    }
-
-    setResolution({ width: targetW, height: targetH });
-
-    // Enable high-quality smoothing for upscaling
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-
-    // Clear canvas
-    ctx.clearRect(0, 0, targetW, targetH);
-
-    // Apply color adjustments via ctx.filter
-    let filterString = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
-    if (warmth > 0) {
-      filterString += ` sepia(${warmth * 0.5}%)`;
-    } else if (warmth < 0) {
-      filterString += ` hue-rotate(${warmth * 0.4}deg)`;
-    }
-    ctx.filter = filterString;
-
-    // Calculate crop cover scaling
-    const imgW = img.naturalWidth || 800;
-    const imgH = img.naturalHeight || 800;
-    const imgAspect = imgW / imgH;
-    const canvasAspect = targetW / targetH;
-
-    let drawW: number;
-    let drawH: number;
-
-    if (imgAspect > canvasAspect) {
-      // Image is wider than canvas
-      drawH = targetH * cropZoom;
-      drawW = drawH * imgAspect;
-    } else {
-      // Image is taller than canvas
-      drawW = targetW * cropZoom;
-      drawH = drawW / imgAspect;
-    }
-
-    // Centered position with pan offset
-    const offsetX = (cropPanX / 100) * targetW;
-    const offsetY = (cropPanY / 100) * targetH;
-    const drawX = (targetW - drawW) / 2 + offsetX;
-    const drawY = (targetH - drawH) / 2 + offsetY;
-
-    // Draw Image
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
-
-    // Reset filter
-    ctx.filter = 'none';
-
-    // Apply Client-Side Sharpening for Upscaling or manual Sharpness
-    const totalSharpen = (upscaleFactor > 1 ? 40 : 0) + sharpness;
-    if (totalSharpen > 0) {
-      applySharpenFilter(ctx, targetW, targetH, Math.min(100, totalSharpen));
-    }
-
-    // Apply Vignette / Studio Shadow
-    if (vignette > 0) {
-      const radius = Math.sqrt(Math.pow(targetW / 2, 2) + Math.pow(targetH / 2, 2));
-      const grad = ctx.createRadialGradient(
-        targetW / 2,
-        targetH / 2,
-        radius * 0.35,
-        targetW / 2,
-        targetH / 2,
-        radius
-      );
-      grad.addColorStop(0, 'rgba(0,0,0,0)');
-      grad.addColorStop(1, `rgba(0,0,0,${(vignette / 100) * 0.78})`);
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, targetW, targetH);
-    }
-
-    // Apply Text Overlay if provided
-    if (overlayText.trim()) {
-      const scaledSize = Math.round(textSize * (targetW / 700));
-      ctx.font = `bold ${scaledSize}px ${fontFamily}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      let textY = targetH / 2;
-      if (textPosition === 'top') textY = targetH * 0.16;
-      if (textPosition === 'bottom') textY = targetH * 0.84;
-
-      const metrics = ctx.measureText(overlayText);
-      const paddingX = scaledSize * 0.6;
-      const paddingY = scaledSize * 0.35;
-      const bannerW = metrics.width + paddingX * 2;
-      const bannerH = scaledSize + paddingY * 2;
-      const bannerX = targetW / 2 - bannerW / 2;
-      const bannerY = textY - bannerH / 2;
-
-      if (textBg) {
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-        drawRoundedRect(ctx, bannerX, bannerY, bannerW, bannerH, scaledSize * 0.3);
-        ctx.fill();
-      } else {
-        // Shadow for text contrast without banner
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = scaledSize * 0.25;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 2;
+      if (aspectRatio === '1:1') {
+        baseW = 1080;
+        baseH = 1080;
+      } else if (aspectRatio === '4:5') {
+        baseW = 1080;
+        baseH = 1350;
+      } else if (aspectRatio === '9:16') {
+        baseW = 1080;
+        baseH = 1920;
+      } else if (aspectRatio === '16:9') {
+        baseW = 1920;
+        baseH = 1080;
+      } else if (aspectRatio === 'orig') {
+        baseW = img.naturalWidth || 1080;
+        baseH = img.naturalHeight || 1080;
       }
 
-      ctx.fillStyle = textColor;
-      ctx.fillText(overlayText, targetW / 2, textY);
+      const targetW = baseW * upscaleFactor;
+      const targetH = baseH * upscaleFactor;
 
-      // Reset shadow
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-    }
-  }, [
-    aspectRatio,
-    upscaleFactor,
-    cropZoom,
-    cropPanX,
-    cropPanY,
-    brightness,
-    contrast,
-    saturation,
-    warmth,
-    sharpness,
-    vignette,
-    overlayText,
-    textPosition,
-    textSize,
-    textColor,
-    textBg,
-    fontFamily,
-  ]);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
 
-  // Trigger render on state change
+      setResolution({ width: targetW, height: targetH });
+
+      // Enable high-quality smoothing for upscaling
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      // Clear canvas
+      ctx.clearRect(0, 0, targetW, targetH);
+
+      // Apply color adjustments via ctx.filter
+      let filterString = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
+      if (warmth > 0) {
+        filterString += ` sepia(${warmth * 0.5}%)`;
+      } else if (warmth < 0) {
+        filterString += ` hue-rotate(${warmth * 0.4}deg)`;
+      }
+      ctx.filter = filterString;
+
+      // Calculate crop cover scaling
+      const imgW = img.naturalWidth || 800;
+      const imgH = img.naturalHeight || 800;
+      const imgAspect = imgW / imgH;
+      const canvasAspect = targetW / targetH;
+
+      let drawW: number;
+      let drawH: number;
+
+      if (imgAspect > canvasAspect) {
+        drawH = targetH * cropZoom;
+        drawW = drawH * imgAspect;
+      } else {
+        drawW = targetW * cropZoom;
+        drawH = drawW / imgAspect;
+      }
+
+      // Centered position with pan offset
+      const offsetX = (cropPanX / 100) * targetW;
+      const offsetY = (cropPanY / 100) * targetH;
+      const drawX = (targetW - drawW) / 2 + offsetX;
+      const drawY = (targetH - drawH) / 2 + offsetY;
+
+      // Draw Image
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+      // Reset filter
+      ctx.filter = 'none';
+
+      // Apply Client-Side Sharpening for Upscaling or manual Sharpness
+      const totalSharpen = (upscaleFactor > 1 ? 40 : 0) + sharpness;
+      if (totalSharpen > 0) {
+        applySharpenFilter(ctx, targetW, targetH, Math.min(100, totalSharpen));
+      }
+
+      // Apply Vignette / Studio Shadow
+      if (vignette > 0) {
+        const radius = Math.sqrt(Math.pow(targetW / 2, 2) + Math.pow(targetH / 2, 2));
+        const grad = ctx.createRadialGradient(
+          targetW / 2,
+          targetH / 2,
+          radius * 0.35,
+          targetW / 2,
+          targetH / 2,
+          radius
+        );
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, `rgba(0,0,0,${(vignette / 100) * 0.78})`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, targetW, targetH);
+      }
+
+      // Apply Text Overlay if provided
+      if (overlayText.trim()) {
+        const scaledSize = Math.round(textSize * (targetW / 700));
+        ctx.font = `bold ${scaledSize}px ${fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        let textY = targetH / 2;
+        if (textPosition === 'top') textY = targetH * 0.16;
+        if (textPosition === 'bottom') textY = targetH * 0.84;
+
+        const metrics = ctx.measureText(overlayText);
+        const paddingX = scaledSize * 0.6;
+        const paddingY = scaledSize * 0.35;
+        const bannerW = metrics.width + paddingX * 2;
+        const bannerH = scaledSize + paddingY * 2;
+        const bannerX = targetW / 2 - bannerW / 2;
+        const bannerY = textY - bannerH / 2;
+
+        if (textBg) {
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+          drawRoundedRect(ctx, bannerX, bannerY, bannerW, bannerH, scaledSize * 0.3);
+          ctx.fill();
+        } else {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+          ctx.shadowBlur = scaledSize * 0.25;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 2;
+        }
+
+        ctx.fillStyle = textColor;
+        ctx.fillText(overlayText, targetW / 2, textY);
+
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+      }
+    },
+    [
+      imageElement,
+      aspectRatio,
+      upscaleFactor,
+      cropZoom,
+      cropPanX,
+      cropPanY,
+      brightness,
+      contrast,
+      saturation,
+      warmth,
+      sharpness,
+      vignette,
+      overlayText,
+      textPosition,
+      textSize,
+      textColor,
+      textBg,
+      fontFamily,
+    ]
+  );
+
+  // 1. Reactive Image Loader: ensures image is loaded and drawn immediately
   useEffect(() => {
-    renderCanvas();
-  }, [renderCanvas]);
+    if (!isImageEditorOpen) return;
+
+    const sourceSrc = editingImage || '/images/coffee-latte.jpg';
+    setImageLoadError(false);
+
+    const isDataUrl = sourceSrc.startsWith('data:');
+    const img = new window.Image();
+
+    // Data URLs do not need crossOrigin; remote URLs try anonymous first
+    if (!isDataUrl && !sourceSrc.startsWith('/')) {
+      img.crossOrigin = 'anonymous';
+    }
+
+    img.onload = () => {
+      setImageElement(img);
+      setResolution({ width: img.naturalWidth || 1080, height: img.naturalHeight || 1080 });
+      setHistory([sourceSrc]);
+      // Explicit immediate draw onto canvas
+      renderCanvas(img);
+    };
+
+    img.onerror = () => {
+      // Fallback: try loading without crossOrigin in case host blocked CORS header
+      const fallback = new window.Image();
+      fallback.onload = () => {
+        setImageElement(fallback);
+        setResolution({ width: fallback.naturalWidth || 1080, height: fallback.naturalHeight || 1080 });
+        setHistory([sourceSrc]);
+        renderCanvas(fallback);
+      };
+      fallback.onerror = () => {
+        setImageLoadError(true);
+      };
+      fallback.src = sourceSrc;
+    };
+
+    img.src = sourceSrc;
+  }, [isImageEditorOpen, editingImage, renderCanvas]);
+
+  // Trigger render on any adjustment/crop state change
+  useEffect(() => {
+    if (imageElement) {
+      renderCanvas(imageElement);
+    }
+  }, [renderCanvas, imageElement]);
+
+  // Handle User File Upload from Computer
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      if (dataUrl) {
+        setEditingImage(dataUrl);
+        showSuccess('Custom image loaded into studio!');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // Handle Drag and Drop Image Upload
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const dataUrl = ev.target?.result as string;
+        if (dataUrl) {
+          setEditingImage(dataUrl);
+          showSuccess('Image dropped into studio!');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   if (!isImageEditorOpen) return null;
 
@@ -359,11 +424,11 @@ export const ImageEditorModal: React.FC = () => {
       const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
       setHistory(prev => [...prev.slice(-8), dataUrl]);
     } catch {
-      // Ignored if tainted
+      // Ignored
     }
   };
 
-  // One-Click AI Magic Presets (Pure Client-Side)
+  // One-Click AI Magic Presets
   const applyPreset = (presetName: string) => {
     setIsProcessing(true);
     setStatusMessage(`Applying ${presetName}...`);
@@ -400,17 +465,11 @@ export const ImageEditorModal: React.FC = () => {
         setBrightness(95);
         setVignette(45);
         setActiveFilter('Monochrome Noir');
-      } else if (presetName === 'pastel') {
-        setContrast(90);
-        setBrightness(110);
-        setSaturation(85);
-        setWarmth(15);
-        setActiveFilter('Soft Film Tone');
       }
 
       setIsProcessing(false);
       setStatusMessage(null);
-    }, 350);
+    }, 280);
   };
 
   // Undo
@@ -423,9 +482,9 @@ export const ImageEditorModal: React.FC = () => {
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      sourceImageRef.current = img;
+      setImageElement(img);
       setHistory(old => old.slice(0, -1));
-      renderCanvas();
+      renderCanvas(img);
     };
     img.src = prev;
   };
@@ -451,8 +510,8 @@ export const ImageEditorModal: React.FC = () => {
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
-        sourceImageRef.current = img;
-        renderCanvas();
+        setImageElement(img);
+        renderCanvas(img);
       };
       img.src = editingImage;
     }
@@ -489,7 +548,7 @@ export const ImageEditorModal: React.FC = () => {
           file_or_url: dataUrl,
           file_name: `edited_post_${Date.now()}.jpg`,
           folder: '/socialix/user_edits',
-          tags: ['socialix', 'editor']
+          tags: ['socialix', 'editor'],
         })
         .then(res => {
           if (res?.url && targetId) {
@@ -502,7 +561,6 @@ export const ImageEditorModal: React.FC = () => {
       setIsImageEditorOpen(false);
     } catch (e) {
       console.error('Failed to export canvas image:', e);
-      // Fallback
       setIsImageEditorOpen(false);
     }
   };
@@ -525,7 +583,16 @@ export const ImageEditorModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden">
+        {/* Hidden File Input for uploading custom images */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          accept="image/*"
+          className="hidden"
+        />
+
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white z-10">
           <div className="flex items-center gap-3">
@@ -540,20 +607,32 @@ export const ImageEditorModal: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-gray-500">
-                Pure browser-powered 2x/4x super-upscaling, smart crops, live filter grade & text overlay
+                Super-upscaling, smart aspect ratio crops, live grading & custom text overlay
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Upload Custom Image Button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5 text-purple-600" />
+              <span>Upload Image</span>
+            </button>
+
+            {/* Download Button */}
             <button
               onClick={handleDownloadImage}
-              title="Download image file"
+              title="Download image file to computer"
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors"
             >
               <Download className="w-3.5 h-3.5 text-gray-500" />
               <span>Download</span>
             </button>
+
+            {/* Close Button */}
             <button
               onClick={() => setIsImageEditorOpen(false)}
               className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
@@ -565,10 +644,18 @@ export const ImageEditorModal: React.FC = () => {
 
         {/* Editor Body: Left Canvas Workspace (62%) + Right Controls (38%) */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden min-h-[500px]">
-          {/* Canvas Workspace */}
+          {/* Canvas Workspace Area */}
           <div
             ref={containerRef}
-            className="md:col-span-7 bg-slate-900/95 p-6 flex flex-col items-center justify-center relative overflow-hidden select-none"
+            onDragOver={e => {
+              e.preventDefault();
+              setIsDraggingOver(true);
+            }}
+            onDragLeave={() => setIsDraggingOver(false)}
+            onDrop={handleDrop}
+            className={`md:col-span-7 p-6 flex flex-col items-center justify-center relative overflow-hidden select-none transition-colors ${
+              isDraggingOver ? 'bg-slate-800 ring-2 ring-purple-400 ring-inset' : 'bg-slate-900'
+            }`}
             style={{
               backgroundImage:
                 'radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0)',
@@ -590,6 +677,14 @@ export const ImageEditorModal: React.FC = () => {
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset</span>
+              </button>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/90 backdrop-blur-md shadow-md border border-gray-200/50 text-xs font-semibold text-purple-700 hover:bg-white transition-all active:scale-95"
+              >
+                <ImageIcon className="w-3.5 h-3.5 text-purple-600" />
+                <span>Change Image</span>
               </button>
             </div>
 
@@ -621,7 +716,7 @@ export const ImageEditorModal: React.FC = () => {
               </button>
             </div>
 
-            {/* Bottom Resolution & Upscale Status Pill */}
+            {/* Bottom Resolution & Status Pill */}
             <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2">
               <div className="px-3 py-1 rounded-full bg-black/75 backdrop-blur-md text-white text-[11px] font-medium border border-white/10 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -639,21 +734,45 @@ export const ImageEditorModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Actual Interactive HTML5 Canvas Element */}
+            {/* Canvas Work Area */}
             <div
               className="relative max-w-full max-h-[460px] flex items-center justify-center transition-transform duration-150 shadow-2xl rounded-2xl overflow-hidden"
               style={{
                 transform: `scale(${viewportZoom})`,
                 boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.7)',
+                backgroundImage:
+                  'linear-gradient(45deg, #1e293b 25%, transparent 25%), linear-gradient(-45deg, #1e293b 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1e293b 75%), linear-gradient(-45deg, transparent 75%, #1e293b 75%)',
+                backgroundSize: '16px 16px',
+                backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
+                backgroundColor: '#0f172a',
               }}
             >
               <canvas
                 ref={canvasRef}
-                className="max-h-[430px] max-w-[430px] object-contain rounded-2xl bg-black"
+                className="max-h-[420px] max-w-[420px] object-contain rounded-2xl"
                 style={{
                   display: 'block',
                 }}
               />
+
+              {/* Empty / Error Fallback Overlay */}
+              {imageLoadError && (
+                <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-6 text-center text-white space-y-3 z-10">
+                  <ImageIcon className="w-10 h-10 text-purple-400" />
+                  <div>
+                    <h4 className="font-bold text-sm">Image failed to load</h4>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Upload an image from your computer to begin editing
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold"
+                  >
+                    Browse Image
+                  </button>
+                </div>
+              )}
 
               {/* Processing Spinner Overlay */}
               {isProcessing && (
@@ -664,6 +783,20 @@ export const ImageEditorModal: React.FC = () => {
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* Quick Sample Presets Picker */}
+            <div className="absolute bottom-4 right-4 z-10 hidden sm:flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-xl border border-white/10">
+              <span className="text-[10px] text-gray-400 font-semibold pl-1">Presets:</span>
+              {samplePresets.map((preset, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setEditingImage(preset.url)}
+                  className="px-2 py-0.5 rounded-lg text-[10px] font-semibold text-gray-200 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  {preset.name}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -719,7 +852,7 @@ export const ImageEditorModal: React.FC = () => {
 
             {/* Tab Contents */}
             <div className="p-5 flex-1 space-y-6 overflow-y-auto">
-              {/* TAB 1: AI MAGIC (Client-side upscaling & enhancements) */}
+              {/* TAB 1: AI MAGIC */}
               {activeTab === 'magic' && (
                 <div className="space-y-5">
                   <div className="space-y-2.5">
@@ -763,7 +896,7 @@ export const ImageEditorModal: React.FC = () => {
                           <div className="font-bold">4x Ultra HD</div>
                         </div>
                         <p className="text-[10px] text-gray-400 mt-1">
-                          4320×4320 px • Maximum print & billboard sharpness
+                          4320×4320 px • Maximum print sharpness
                         </p>
                       </button>
                     </div>
@@ -783,7 +916,7 @@ export const ImageEditorModal: React.FC = () => {
                           <Layers className="w-4 h-4 text-purple-600 flex-shrink-0" />
                           <span className="font-bold text-gray-800">Studio Focus</span>
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1">Radial dark vignette + subject pop</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Radial vignette + subject contrast</p>
                       </button>
 
                       <button
@@ -794,7 +927,7 @@ export const ImageEditorModal: React.FC = () => {
                           <Palette className="w-4 h-4 text-amber-500 flex-shrink-0" />
                           <span className="font-bold text-gray-800">Golden Hour</span>
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1">Artisan coffee warmth & glow</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Warm golden tones & rich glow</p>
                       </button>
 
                       <button
@@ -805,7 +938,7 @@ export const ImageEditorModal: React.FC = () => {
                           <Sparkles className="w-4 h-4 text-pink-500 flex-shrink-0" />
                           <span className="font-bold text-gray-800">Vibrant Pop</span>
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1">Social media feed contrast boost</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Social feed contrast & saturation</p>
                       </button>
 
                       <button
@@ -922,7 +1055,7 @@ export const ImageEditorModal: React.FC = () => {
                 </div>
               )}
 
-              {/* TAB 3: ADJUST (Client-side live sliders) */}
+              {/* TAB 3: ADJUST */}
               {activeTab === 'adjust' && (
                 <div className="space-y-4 text-xs">
                   <div className="space-y-1">

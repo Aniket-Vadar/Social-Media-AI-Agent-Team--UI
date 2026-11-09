@@ -20,9 +20,13 @@ import {
   Ban,
   Search,
   Trash2,
+  Camera,
+  Image as ImageIcon,
+  X,
+  Upload,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { AgentId } from '@/types';
+import { AgentId, Post } from '@/types';
 import { Header } from '@/components/layout/Header';
 import { OfficeCanvas } from '@/components/office/OfficeCanvas';
 import { LiveVirtualBox } from '@/components/sandbox/LiveVirtualBox';
@@ -41,21 +45,48 @@ export default function AgentsPage() {
     clearChatMessages,
     setIsImageEditorOpen,
     setEditingImage,
+    setSelectedPostForDetail,
+    posts,
     updatePost,
     logActivity,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'chat' | 'tasks' | 'computer' | 'settings'>('chat');
   const [chatInput, setChatInput] = useState('');
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleChatImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      if (typeof ev.target?.result === 'string') {
+        setReferenceImage(ev.target.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!chatInput.trim()) return;
-    sendMessage(chatInput.trim());
+    if (!chatInput.trim() && !referenceImage) return;
+    sendMessage(chatInput.trim(), referenceImage || undefined);
     setChatInput('');
+    setReferenceImage(null);
   };
 
   const handleSuggestionClick = (prompt: string) => {
+    if (prompt.includes('AI Image Studio')) {
+      const lastPostWithMedia = posts.find(p => p.mediaUrl);
+      if (lastPostWithMedia) {
+        setSelectedPostForDetail(lastPostWithMedia);
+        setEditingImage(lastPostWithMedia.mediaUrl);
+        setIsImageEditorOpen(true);
+        return;
+      }
+    }
     sendMessage(prompt);
   };
 
@@ -304,6 +335,21 @@ export default function AgentsPage() {
                           >
                             <p className="whitespace-pre-line">{msg.content}</p>
 
+                            {/* Reference Image preview if attached */}
+                            {msg.attachedImage && (
+                              <div className="mt-2 rounded-2xl overflow-hidden border border-white/20 shadow-md">
+                                <img
+                                  src={msg.attachedImage}
+                                  alt="Uploaded reference"
+                                  className="w-full max-h-48 object-cover rounded-xl"
+                                />
+                                <div className="px-2.5 py-1 bg-black/40 backdrop-blur-xs text-[10px] text-white flex items-center gap-1.5 font-semibold">
+                                  <Sparkles className="w-3 h-3 text-amber-300" />
+                                  <span>Visual Reference Attached</span>
+                                </div>
+                              </div>
+                            )}
+
                             {/* Plan Card embedded in response */}
                             {msg.plan && (() => {
                               const currentPlan =
@@ -420,14 +466,19 @@ export default function AgentsPage() {
                                   )}
                                   <button
                                     onClick={() => {
-                                      if (msg.postPreview?.mediaUrl) {
-                                        setEditingImage(msg.postPreview.mediaUrl);
+                                      if (msg.postPreview) {
+                                        const fullPost = posts.find(p => p.id === msg.postPreview?.id) || (msg.postPreview as Post);
+                                        setSelectedPostForDetail(fullPost);
+                                        if (msg.postPreview.mediaUrl) {
+                                          setEditingImage(msg.postPreview.mediaUrl);
+                                        }
                                         setIsImageEditorOpen(true);
                                       }
                                     }}
-                                    className="px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-[11px] transition-colors"
+                                    className="px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-purple-700 font-semibold text-[11px] transition-colors flex items-center gap-1.5"
                                   >
-                                    Edit Image
+                                    <Sparkles className="w-3 h-3 text-purple-600" />
+                                    <span>AI Studio</span>
                                   </button>
                                 </div>
                               </div>
@@ -455,17 +506,66 @@ export default function AgentsPage() {
 
                   {/* Input Composer */}
                   <form onSubmit={handleSendMessage} className="space-y-2 pt-2">
+                    {/* Attached Reference Image Preview Chip */}
+                    {referenceImage && (
+                      <div className="flex items-center gap-2.5 p-2 bg-purple-50/80 border border-purple-200 rounded-2xl animate-in fade-in slide-in-from-bottom-2 duration-150">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden relative flex-shrink-0 border border-purple-300">
+                          <img src={referenceImage} alt="Reference" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-bold text-purple-900 flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Visual Reference Attached</span>
+                          </div>
+                          <p className="text-[10px] text-purple-600 truncate">
+                            Agent will formulate tailored caption & creative centered around this visual
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setReferenceImage(null)}
+                          className="p-1 rounded-lg text-purple-400 hover:text-purple-700 hover:bg-purple-100 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="relative flex items-center">
+                      {/* Hidden File Input */}
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleChatImageUpload}
+                        accept="image/*"
+                        className="hidden"
+                      />
+
+                      {/* Upload Reference Image Button */}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Upload reference photo for agent to analyze & create post"
+                        className="absolute left-2.5 p-1.5 rounded-xl text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors z-10"
+                      >
+                        <Camera className="w-4 h-4" />
+                      </button>
+
                       <input
                         type="text"
                         value={chatInput}
                         onChange={e => setChatInput(e.target.value)}
-                        placeholder={`Tell ${activeAgent.name} what you need...`}
-                        className="w-full pl-4 pr-12 py-3 rounded-2xl border border-gray-200 bg-gray-50/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-xs text-gray-900 transition-all shadow-inner"
+                        placeholder={
+                          referenceImage
+                            ? "Tell agent how to use this reference image (or press Enter)..."
+                            : `Tell ${activeAgent.name} what to create, or attach a reference photo...`
+                        }
+                        className="w-full pl-10 pr-12 py-3 rounded-2xl border border-gray-200 bg-gray-50/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-xs text-gray-900 transition-all shadow-inner"
                       />
+
                       <button
                         type="submit"
-                        disabled={!chatInput.trim()}
+                        disabled={!chatInput.trim() && !referenceImage}
                         className="absolute right-2 p-2 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:bg-gray-200 text-white transition-all shadow-xs"
                       >
                         <Send className="w-3.5 h-3.5" />
@@ -473,7 +573,7 @@ export default function AgentsPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-gray-400 px-1">
-                      <span>Pro-tip: Master Agent delegates tasks automatically across your team.</span>
+                      <span>Tip: Click the camera icon to upload any photo for custom post generation.</span>
                       <kbd className="font-mono text-[10px] bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
                         Enter ↵
                       </kbd>

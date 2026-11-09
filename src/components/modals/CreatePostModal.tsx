@@ -37,11 +37,25 @@ export const CreatePostModal: React.FC = () => {
   );
   const [platform, setPlatform] = useState<PlatformType>('instagram');
   const [mediaUrl, setMediaUrl] = useState('/images/coffee-latte.jpg');
-  const [date, setDate] = useState('2026-10-16');
-  const [time, setTime] = useState('21:00');
-  const [timezone, setTimezone] = useState('America/New_York (GMT-4)');
+  const [date, setDate] = useState('2026-11-10');
+  const [time, setTime] = useState('10:00');
+  const [timezone, setTimezone] = useState('America/New_York (EST)');
   const [hashtags, setHashtags] = useState(['#ArtisanCoffee', '#CoffeeLovers', '#ColdBrewLaunch']);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const mediaFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      if (typeof ev.target?.result === 'string') {
+        setMediaUrl(ev.target.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   if (!isCreatePostOpen) return null;
 
@@ -268,10 +282,36 @@ export const CreatePostModal: React.FC = () => {
                   </span>
                 </div>
 
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  ref={mediaFileInputRef}
+                  onChange={handleMediaUpload}
+                  accept="image/*,video/*"
+                  className="hidden"
+                />
+
                 {/* Dropzone Upload */}
-                <div className="flex-1 h-24 rounded-2xl border-2 border-dashed border-gray-200 hover:border-brand-400 flex flex-col items-center justify-center p-3 text-center cursor-pointer transition-colors bg-gray-50/50">
-                  <Upload className="w-5 h-5 text-gray-400 mb-1" />
-                  <span className="text-xs font-semibold text-gray-700">Drop images or a video here</span>
+                <div
+                  onClick={() => mediaFileInputRef.current?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = ev => {
+                        if (typeof ev.target?.result === 'string') {
+                          setMediaUrl(ev.target.result);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="flex-1 h-24 rounded-2xl border-2 border-dashed border-gray-200 hover:border-brand-400 flex flex-col items-center justify-center p-3 text-center cursor-pointer transition-colors bg-gray-50/50 hover:bg-brand-50/30 group/dz"
+                >
+                  <Upload className="w-5 h-5 text-gray-400 group-hover/dz:text-brand-500 mb-1 transition-colors" />
+                  <span className="text-xs font-semibold text-gray-700 group-hover/dz:text-brand-700">Drop images or click to browse</span>
                   <span className="text-[10px] text-gray-400">PNG, JPG, WEBP up to 10MB</span>
                 </div>
               </div>
